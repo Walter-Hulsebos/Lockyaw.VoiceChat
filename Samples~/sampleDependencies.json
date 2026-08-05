@@ -1,0 +1,63 @@
+{
+  "SharedPackageDependencies": [],
+  "SampleEntries": [
+    {
+      "DisplayName": "First-Person Voice Chat",
+      "PackageDependencies": [
+        {
+          "Name": "com.unity.inputsystem"
+        },
+        {
+          "Name": "com.unity.render-pipelines.universal"
+        },
+        {
+          "Name": "com.unity.modules.animation"
+        },
+        {
+          "Name": "com.unity.transport"
+        },
+        {
+          "Name": "com.community.netcode.extensions",
+          "InstallSource": "https://github.com/Unity-Technologies/multiplayer-community-contributions.git?path=/com.community.netcode.extensions"
+        }
+      ]
+    },
+    {
+      "DisplayName": "Radios and Public Broadcast",
+      "PackageDependencies": [
+        {
+          "Name": "com.unity.transport"
+        }
+      ]
+    },
+    {
+      "DisplayName": "Steam Networking Sockets",
+      "PackageDependencies": [
+        {
+          "Name": "com.rlabrecque.steamworks.net",
+          "InstallSource": "https://github.com/rlabrecque/Steamworks.NET.git?path=/com.rlabrecque.steamworks.net"
+        },
+        {
+          "Name": "com.community.netcode.transport.steamnetworkingsockets",
+          "InstallSource": "https://github.com/Unity-Technologies/multiplayer-community-contributions.git?path=/Transports/com.community.netcode.transport.steamnetworkingsockets"
+        }
+      ]
+    },
+    {
+      "DisplayName": "Speaker Volume UI",
+      "PackageDependencies": [
+        {
+          "Name": "com.unity.ugui"
+        }
+      ]
+    },
+    {
+      "DisplayName": "Speaker Volume UI Toolkit",
+      "PackageDependencies": [
+        {
+          "Name": "com.unity.modules.uielements"
+        }
+      ]
+    }
+  ]
+}

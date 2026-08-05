@@ -1,0 +1,31 @@
+{
+  "name": "Lockyaw.VoiceChat.FirstPersonSample",
+  "rootNamespace": "Lockyaw.VoiceChat.FirstPersonSample",
+  "references": [
+    "Lockyaw.VoiceChat",
+    "Unity.Netcode.Runtime",
+    "Unity.InputSystem"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [
+    "LOCKYAW_VOICECHAT_INPUT_SYSTEM"
+  ],
+  "versionDefines": [
+    {
+      "name": "com.unity.inputsystem",
+      "expression": "",
+      "define": "LOCKYAW_VOICECHAT_INPUT_SYSTEM"
+    },
+    {
+      "name": "com.unity.transport",
+      "expression": "2.0.0",
+      "define": "LOCKYAW_VOICECHAT_UNITY_TRANSPORT"
+    }
+  ],
+  "noEngineReferences": false
+}

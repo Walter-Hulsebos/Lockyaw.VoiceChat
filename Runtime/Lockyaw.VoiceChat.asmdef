@@ -1,0 +1,19 @@
+{
+  "name": "Lockyaw.VoiceChat",
+  "rootNamespace": "Lockyaw.VoiceChat",
+  "references": [
+    "Unity.Netcode.Runtime",
+    "Unity.Collections"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "Concentus.dll"
+  ],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

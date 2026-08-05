@@ -1,0 +1,13 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="./Speaker Volume.uss" />
+    <ui:VisualElement class="speaker-volume-screen">
+        <ui:VisualElement class="speaker-volume-panel">
+            <ui:VisualElement class="speaker-volume-heading">
+                <ui:Label text="Speaker Volume" class="speaker-volume-heading__title" />
+                <ui:Label text="Adjust how loudly each player is heard." class="speaker-volume-heading__description" />
+            </ui:VisualElement>
+            <ui:ScrollView name="speaker-volume-list-host" mode="Vertical" horizontal-scroller-visibility="Hidden" vertical-scroller-visibility="Auto" class="speaker-volume-list-host" />
+            <ui:Label name="speaker-volume-empty-state" text="No other speakers are connected." class="speaker-volume-empty-state" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

@@ -1,0 +1,30 @@
+{
+  "name": "Lockyaw.VoiceChat.SpeakerVolumeToolkitSample",
+  "rootNamespace": "Lockyaw.VoiceChat.SpeakerVolumeToolkitSample",
+  "references": [
+    "Lockyaw.VoiceChat",
+    "Unity.Netcode.Runtime"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [
+    "LOCKYAW_VOICECHAT_UI_TOOLKIT"
+  ],
+  "versionDefines": [
+    {
+      "name": "com.unity.modules.uielements",
+      "expression": "",
+      "define": "LOCKYAW_VOICECHAT_UI_TOOLKIT"
+    },
+    {
+      "name": "com.rlabrecque.steamworks.net",
+      "expression": "",
+      "define": "LOCKYAW_VOICECHAT_STEAMWORKS_NET"
+    }
+  ],
+  "noEngineReferences": false
+}

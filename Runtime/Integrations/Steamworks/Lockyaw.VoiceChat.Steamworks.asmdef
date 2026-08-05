@@ -1,0 +1,32 @@
+{
+  "name": "Lockyaw.VoiceChat.Steamworks",
+  "rootNamespace": "Lockyaw.VoiceChat",
+  "references": [
+    "Lockyaw.VoiceChat",
+    "com.rlabrecque.steamworks.net"
+  ],
+  "includePlatforms": [
+    "Android",
+    "Editor",
+    "LinuxStandalone64",
+    "macOSStandalone",
+    "WindowsStandalone32",
+    "WindowsStandalone64"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [
+    "LOCKYAW_VOICECHAT_STEAMWORKS_NET"
+  ],
+  "versionDefines": [
+    {
+      "name": "com.rlabrecque.steamworks.net",
+      "expression": "",
+      "define": "LOCKYAW_VOICECHAT_STEAMWORKS_NET"
+    }
+  ],
+  "noEngineReferences": false
+}

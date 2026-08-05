@@ -1,0 +1,13 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="./Speaker Volume.uss" />
+    <ui:VisualElement name="speaker-volume-entry" class="speaker-volume-entry">
+        <ui:VisualElement class="speaker-volume-entry__identity">
+            <ui:VisualElement name="speaker-speaking-indicator" class="speaker-volume-entry__indicator" picking-mode="Ignore" />
+            <ui:Label name="speaker-name" text="Player" class="speaker-volume-entry__name" />
+        </ui:VisualElement>
+        <ui:VisualElement class="speaker-volume-entry__control">
+            <ui:Slider name="speaker-volume-slider" low-value="0" high-value="1" value="1" class="speaker-volume-entry__slider" />
+            <ui:Label name="speaker-volume-value" text="100%" class="speaker-volume-entry__value" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

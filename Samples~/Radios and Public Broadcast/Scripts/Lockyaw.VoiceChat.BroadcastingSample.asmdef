@@ -1,0 +1,17 @@
+{
+  "name": "Lockyaw.VoiceChat.BroadcastingSample",
+  "rootNamespace": "Lockyaw.VoiceChat.BroadcastingSample",
+  "references": [
+    "Lockyaw.VoiceChat",
+    "Unity.Netcode.Runtime"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

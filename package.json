@@ -1,0 +1,54 @@
+{
+  "name": "lockyaw.voicechat",
+  "displayName": "Lockyaw Voice Chat",
+  "version": "0.1.0",
+  "unity": "6000.0",
+  "description": "Native Netcode for GameObjects voice communication for client-server and distributed-authority topologies, with authority-routed conversation groups, area microphones, channel-based radios and public-address speakers, Opus encoding, spatial and global playback, and guided setup.",
+  "keywords": [
+    "voice",
+    "chat",
+    "netcode",
+    "ngo",
+    "radio",
+    "walkie-talkie",
+    "broadcast",
+    "spatial audio"
+  ],
+  "author": {
+    "name": "Lockyaw"
+  },
+  "dependencies": {
+    "com.unity.netcode.gameobjects": "2.13.1",
+    "com.unity.collections": "2.6.5",
+    "com.unity.modules.audio": "1.0.0",
+    "com.unity.modules.imgui": "1.0.0",
+    "com.unity.modules.physics": "1.0.0"
+  },
+  "samples": [
+    {
+      "displayName": "First-Person Voice Chat",
+      "description": "Proximity chat, global chat, and push-to-talk.",
+      "path": "Samples~/First-Person Voice Chat"
+    },
+    {
+      "displayName": "Radios and Public Broadcast",
+      "description": "Walkie-talkies that relay nearby sound on matching frequencies, plus a button-operated microphone connected to several world speakers.",
+      "path": "Samples~/Radios and Public Broadcast"
+    },
+    {
+      "displayName": "Steam Networking Sockets",
+      "description": "A client-server network prefab that connects through Steam IDs.",
+      "path": "Samples~/Steam Networking Sockets"
+    },
+    {
+      "displayName": "Speaker Volume uGUI",
+      "description": "A reskinnable uGUI prefab for changing each player's voice volume.",
+      "path": "Samples~/Speaker Volume UI"
+    },
+    {
+      "displayName": "Speaker Volume UI Toolkit",
+      "description": "Reusable UI Toolkit controls for changing each player's voice volume.",
+      "path": "Samples~/Speaker Volume UI Toolkit"
+    }
+  ]
+}
