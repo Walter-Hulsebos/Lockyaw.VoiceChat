@@ -26,6 +26,10 @@ namespace Lockyaw.VoiceChat {
         public int ConcurrentReadAborts { get; }
         public int PartialReads { get; }
         public float OverflowedMilliseconds { get; }
+        public int RenderQuantumSamples { get; }
+        public float ScheduledLeadMilliseconds { get; }
+        public long RendererUnderruns { get; }
+        public long RendererRebases { get; }
 
         public VoicePlaybackDiagnostics(
             int audioCallbackSamples,
@@ -51,7 +55,11 @@ namespace Lockyaw.VoiceChat {
             int rebufferEvents,
             int concurrentReadAborts,
             int partialReads,
-            float overflowedMilliseconds) {
+            float overflowedMilliseconds,
+            int renderQuantumSamples = 0,
+            float scheduledLeadMilliseconds = 0f,
+            long rendererUnderruns = 0L,
+            long rendererRebases = 0L) {
             AudioCallbackSamples = audioCallbackSamples;
             OutputSampleRate = outputSampleRate;
             DspBufferSamples = dspBufferSamples;
@@ -76,6 +84,10 @@ namespace Lockyaw.VoiceChat {
             ConcurrentReadAborts = concurrentReadAborts;
             PartialReads = partialReads;
             OverflowedMilliseconds = overflowedMilliseconds;
+            RenderQuantumSamples = renderQuantumSamples;
+            ScheduledLeadMilliseconds = scheduledLeadMilliseconds;
+            RendererUnderruns = rendererUnderruns;
+            RendererRebases = rendererRebases;
         }
 
     }

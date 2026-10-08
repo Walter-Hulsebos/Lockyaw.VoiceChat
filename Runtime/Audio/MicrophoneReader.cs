@@ -8,7 +8,7 @@ namespace Lockyaw.VoiceChat {
     internal sealed class MicrophoneReader : IDisposable {
 
         internal string DeviceName => deviceName;
-        internal bool IsRecording => microphoneClip != null && Microphone.IsRecording(deviceName);
+        internal bool IsRecording => GetIsRecording();
         internal int SampleRate => sampleRate;
         internal int ChannelCount => channelCount;
         internal float QueuedMilliseconds => sampleRate <= 0 ? 0f : queuedInputFrames * 1000f / sampleRate;
@@ -19,6 +19,7 @@ namespace Lockyaw.VoiceChat {
 
         private readonly string deviceName;
         private readonly float[] frameSamples;
+        private readonly IMicrophoneApi microphoneApi;
         private float[] captureSamples;
         private AudioClip microphoneClip;
         private int readPosition;
@@ -28,9 +29,13 @@ namespace Lockyaw.VoiceChat {
         private int queuedInputFrames;
         private long droppedInputFrames;
 
-        internal MicrophoneReader(string deviceName, int samplesPerFrame) {
+        internal MicrophoneReader(string deviceName, int samplesPerFrame)
+            : this(deviceName, samplesPerFrame, UnityMicrophoneApi.Instance) { }
+
+        internal MicrophoneReader(string deviceName, int samplesPerFrame, IMicrophoneApi microphoneApi) {
             this.deviceName = deviceName;
             frameSamples = new float[samplesPerFrame];
+            this.microphoneApi = microphoneApi != null ? microphoneApi : throw new ArgumentNullException(nameof(microphoneApi));
         }
 
         public void Dispose() {
@@ -39,35 +44,45 @@ namespace Lockyaw.VoiceChat {
 
         internal bool Start() {
             Stop();
-            microphoneClip = Microphone.Start(deviceName, true, CAPTURE_SECONDS, VoiceEncoderSession.SAMPLE_RATE);
-            readPosition = 0;
-            queuedInputFrames = 0;
-            droppedInputFrames = 0;
-            if (microphoneClip == null) { return false; }
+            if (!MicrophoneDevices.ContainsDevice(microphoneApi, deviceName)) { return false; }
 
-            sampleRate = microphoneClip.frequency;
-            channelCount = microphoneClip.channels;
-            if (sampleRate <= 0 || channelCount <= 0) {
+            try {
+                microphoneClip = microphoneApi.Start(deviceName, CAPTURE_SECONDS, VoiceEncoderSession.SAMPLE_RATE);
+                droppedInputFrames = 0;
+                if (microphoneClip == null) { return false; }
+
+                sampleRate = microphoneClip.frequency;
+                channelCount = microphoneClip.channels;
+                if (sampleRate <= 0 || channelCount <= 0) {
+                    Stop();
+                    return false;
+                }
+
+                inputFramesPerOutputFrame = Math.Max(1, (int)Math.Round(frameSamples.Length * sampleRate / (double)VoiceEncoderSession.SAMPLE_RATE));
+                int lookaheadFrames = sampleRate == VoiceEncoderSession.SAMPLE_RATE ? 0 : 1;
+                captureSamples = channelCount == 1 && lookaheadFrames == 0
+                    ? null
+                    : new float[(inputFramesPerOutputFrame + lookaheadFrames) * channelCount];
+                return true;
+            }
+            catch (Exception) {
                 Stop();
                 return false;
             }
-
-            inputFramesPerOutputFrame = Math.Max(1, (int)Math.Round(frameSamples.Length * sampleRate / (double)VoiceEncoderSession.SAMPLE_RATE));
-            int lookaheadFrames = sampleRate == VoiceEncoderSession.SAMPLE_RATE ? 0 : 1;
-            captureSamples = channelCount == 1 && lookaheadFrames == 0
-                ? null
-                : new float[(inputFramesPerOutputFrame + lookaheadFrames) * channelCount];
-            return true;
         }
 
         internal void Stop() {
-            if (Microphone.IsRecording(deviceName)) {
-                Microphone.End(deviceName);
-            }
-
             if (microphoneClip != null) {
-                Object.Destroy(microphoneClip);
-                microphoneClip = null;
+                try {
+                    if (IsRecording) {
+                        microphoneApi.End(deviceName);
+                    }
+                }
+                catch (Exception) { }
+                finally {
+                    Object.Destroy(microphoneClip);
+                    microphoneClip = null;
+                }
             }
             readPosition = 0;
             queuedInputFrames = 0;
@@ -81,7 +96,13 @@ namespace Lockyaw.VoiceChat {
             samples = ReadOnlySpan<float>.Empty;
             if (!IsRecording) { return false; }
 
-            int microphonePosition = Microphone.GetPosition(deviceName);
+            int microphonePosition;
+            try {
+                microphonePosition = microphoneApi.GetPosition(deviceName);
+            }
+            catch (Exception) {
+                return false;
+            }
             if (microphonePosition < 0) { return false; }
 
             int availableInputFrames = microphonePosition >= readPosition
@@ -141,6 +162,17 @@ namespace Lockyaw.VoiceChat {
                 sample += captureSamples[sampleIndex + channelIndex];
             }
             return sample / channelCount;
+        }
+
+        private bool GetIsRecording() {
+            if (microphoneClip == null || !MicrophoneDevices.ContainsDevice(microphoneApi, deviceName)) { return false; }
+
+            try {
+                return microphoneApi.IsRecording(deviceName);
+            }
+            catch (Exception) {
+                return false;
+            }
         }
 
     }

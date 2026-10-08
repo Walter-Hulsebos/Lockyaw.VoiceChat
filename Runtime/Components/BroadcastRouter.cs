@@ -178,7 +178,8 @@ namespace Lockyaw.VoiceChat {
             ChannelSpeaker.CollectListenerClientIds(NetworkManager, channel, relayTargets);
             for (int i = relayTargets.Length - 1; i >= 0; i--) {
                 ulong clientId = relayTargets[i];
-                if (!NetworkObject.IsNetworkVisibleTo(clientId) ||
+                if (!VoiceParticipant.IsClientReceivingEnabled(NetworkManager, clientId) ||
+                    !NetworkObject.IsNetworkVisibleTo(clientId) ||
                     NetworkManager.CMBServiceConnection && clientId == NetworkManager.ServerClientId ||
                     clientId == NetworkManager.LocalClientId && !NetworkManager.IsClient) {
                     relayTargets.RemoveAtSwapBack(i);
@@ -220,6 +221,7 @@ namespace Lockyaw.VoiceChat {
             if (frame.Route.OriginNetworkObjectId == frame.Route.SourceNetworkObjectId) {
                 return !frame.Route.HasOriginClient &&
                        sourceMicrophone.CapturesWorldAudio &&
+                       VoiceParticipant.IsClientSendingEnabled(NetworkManager, sourceMicrophone.CaptureClientId) &&
                        frame.Frame.SourceClientId == sourceMicrophone.CaptureClientId;
             }
             if (!frame.Route.HasOriginClient || frame.Frame.SourceClientId != frame.Route.OriginClientId) { return false; }
@@ -227,7 +229,8 @@ namespace Lockyaw.VoiceChat {
                 return false;
             }
             if (!originObject.TryGetComponent(out VoiceParticipant participant)) { return false; }
-            return participant.OwnerClientId == frame.Route.OriginClientId &&
+            return participant.IsSendingEnabled &&
+                   participant.OwnerClientId == frame.Route.OriginClientId &&
                    sourceMicrophone.ContainsPosition(participant.transform.position) &&
                    sourceMicrophone.CanCaptureVoiceFrom(frame.Route.OriginClientId);
         }

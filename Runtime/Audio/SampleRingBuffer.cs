@@ -31,6 +31,7 @@ namespace Lockyaw.VoiceChat {
         private long overflowedSampleCount;
         private long trailingSilenceSampleCount;
         private bool isPrimed;
+        private bool isUnderflowing;
         private bool shouldFadeIn = true;
 
         internal SampleRingBuffer(int capacity, int prebufferSamples) {
@@ -119,14 +120,15 @@ namespace Lockyaw.VoiceChat {
             long currentDiscardBeforePosition = Volatile.Read(ref discardBeforePosition);
             long nextReadPosition = readPosition;
             bool nextIsPrimed = isPrimed;
+            bool nextIsUnderflowing = isUnderflowing;
             bool nextShouldFadeIn = shouldFadeIn;
 
             if (observedClearVersion != currentClearVersion) {
                 nextReadPosition = currentDiscardBeforePosition;
                 nextIsPrimed = false;
+                nextIsUnderflowing = false;
                 nextShouldFadeIn = true;
             }
-            bool wasPrimed = nextIsPrimed;
 
             long oldestAvailablePosition = Math.Max(currentDiscardBeforePosition, currentWritePosition - samples.Length);
             if (nextReadPosition < oldestAvailablePosition || nextReadPosition > currentWritePosition) {
@@ -137,27 +139,25 @@ namespace Lockyaw.VoiceChat {
             }
 
             long availableSampleCount = currentWritePosition - nextReadPosition;
-            int playbackReserveSamples = Math.Max(prebufferSamples, destination.Length);
-            int requiredStartSamples = Math.Min(samples.Length, playbackReserveSamples + destination.Length);
+            int requiredStartSamples = Math.Min(samples.Length, Math.Max(prebufferSamples, destination.Length));
             if (!nextIsPrimed && availableSampleCount < requiredStartSamples) {
                 Interlocked.Increment(ref prebufferWaitCount);
-                if (availableSampleCount == 0) {
-                    Interlocked.Add(ref trailingSilenceSampleCount, destination.Length);
-                }
                 if (!IsWriteVersionStable(initialWriteVersion)) {
                     Interlocked.Increment(ref concurrentReadAbortCount);
                     return 0;
                 }
 
-                CommitRead(nextReadPosition, false, true, currentClearVersion);
+                CommitRead(nextReadPosition, false, false, true, currentClearVersion);
                 return 0;
             }
 
-            if (wasPrimed && availableSampleCount < destination.Length) {
+            bool hasUnderflow = availableSampleCount < destination.Length;
+            if (nextIsPrimed && !nextIsUnderflowing && hasUnderflow) {
                 Interlocked.Increment(ref rebufferCount);
             }
 
             nextIsPrimed = true;
+            nextIsUnderflowing = hasUnderflow;
             int samplesToRead = (int)Math.Min(destination.Length, availableSampleCount);
             if (samplesToRead < destination.Length) {
                 Interlocked.Increment(ref partialReadCount);
@@ -183,9 +183,6 @@ namespace Lockyaw.VoiceChat {
             }
 
             nextReadPosition += samplesToRead;
-            if (samplesToRead < destination.Length || nextReadPosition == currentWritePosition) {
-                nextIsPrimed = false;
-            }
 
             if (!IsWriteVersionStable(initialWriteVersion)) {
                 Interlocked.Increment(ref concurrentReadAbortCount);
@@ -193,7 +190,7 @@ namespace Lockyaw.VoiceChat {
                 return 0;
             }
 
-            CommitRead(nextReadPosition, nextIsPrimed, nextShouldFadeIn, currentClearVersion);
+            CommitRead(nextReadPosition, nextIsPrimed, nextIsUnderflowing, nextShouldFadeIn, currentClearVersion);
             return samplesToRead;
         }
 
@@ -236,9 +233,15 @@ namespace Lockyaw.VoiceChat {
             Interlocked.Increment(ref writeVersion);
         }
 
-        private void CommitRead(long nextReadPosition, bool nextIsPrimed, bool nextShouldFadeIn, int currentClearVersion) {
+        private void CommitRead(
+            long nextReadPosition,
+            bool nextIsPrimed,
+            bool nextIsUnderflowing,
+            bool nextShouldFadeIn,
+            int currentClearVersion) {
             readPosition = nextReadPosition;
             isPrimed = nextIsPrimed;
+            isUnderflowing = nextIsUnderflowing;
             shouldFadeIn = nextShouldFadeIn;
             observedClearVersion = currentClearVersion;
             Volatile.Write(ref publishedReadPosition, nextReadPosition);

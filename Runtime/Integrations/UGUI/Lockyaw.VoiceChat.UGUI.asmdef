@@ -1,0 +1,28 @@
+{
+  "name": "Lockyaw.VoiceChat.UGUI",
+  "rootNamespace": "Lockyaw.VoiceChat.UGUI",
+  "references": [
+    "Lockyaw.VoiceChat",
+    "Unity.Netcode.Runtime",
+    "Unity.TextMeshPro",
+    "UnityEngine.UI"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [
+    "LOCKYAW_VOICECHAT_UGUI",
+    "!UNITY_SERVER"
+  ],
+  "versionDefines": [
+    {
+      "name": "com.unity.ugui",
+      "expression": "",
+      "define": "LOCKYAW_VOICECHAT_UGUI"
+    }
+  ],
+  "noEngineReferences": false
+}

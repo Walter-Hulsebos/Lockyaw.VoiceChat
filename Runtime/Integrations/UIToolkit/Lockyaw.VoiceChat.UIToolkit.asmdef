@@ -1,0 +1,26 @@
+{
+  "name": "Lockyaw.VoiceChat.UIToolkit",
+  "rootNamespace": "Lockyaw.VoiceChat.UIToolkit",
+  "references": [
+    "Lockyaw.VoiceChat",
+    "Unity.Netcode.Runtime"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [
+    "LOCKYAW_VOICECHAT_UI_TOOLKIT",
+    "!UNITY_SERVER"
+  ],
+  "versionDefines": [
+    {
+      "name": "com.unity.modules.uielements",
+      "expression": "",
+      "define": "LOCKYAW_VOICECHAT_UI_TOOLKIT"
+    }
+  ],
+  "noEngineReferences": false
+}

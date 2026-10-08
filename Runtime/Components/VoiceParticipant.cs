@@ -23,11 +23,14 @@ namespace Lockyaw.VoiceChat {
         [Header("Relay Validation")]
         [SerializeField, Range(20, 120)] private int maxFramesPerSecond = 110;
 
+        public static readonly Signal<VoiceParticipant> OnParticipantJoin = new();
+        public static readonly Signal<VoiceParticipant> OnParticipantLeave = new();
         public readonly Signal<ParticipantState> OnStateChanged = new();
         public readonly Signal<bool> OnInputMuted = new();
         public readonly Signal<bool> OnDeafened = new();
         public readonly Signal<bool> OnSpeaking = new();
         public readonly Signal<bool> OnPlaybackMuted = new();
+        public readonly Signal<float> OnPlaybackVolume = new();
 
         public static IReadOnlyList<VoiceParticipant> SpawnedParticipants => readonlySpawnedParticipants;
         public static VoiceParticipant LocalParticipant => localParticipant != null && localParticipant.isActiveAndEnabled ? localParticipant : null;
@@ -36,8 +39,12 @@ namespace Lockyaw.VoiceChat {
         public bool IsInputMuted => participantState.Value.IsInputMuted;
         public bool IsDeafened => participantState.Value.IsDeafened;
         public bool IsSpeaking => participantState.Value.IsSpeaking;
+        public bool IsSendingEnabled => participantState.Value.IsSendingEnabled;
+        public bool IsReceivingEnabled => participantState.Value.IsReceivingEnabled;
         public float VoiceLevel => participantState.Value.Level / (float)byte.MaxValue;
         public bool IsPlaybackMuted => isPlaybackMuted;
+        public float PlaybackVolume => playbackVolume;
+        public SpeakerIdentity Identity => GetIdentity();
         public bool LocalLoopback => localLoopback;
         public ConversationMembership Membership => GetMembership();
 
@@ -62,6 +69,8 @@ namespace Lockyaw.VoiceChat {
         private int authorityFramesInWindow;
         private bool hasLocalParticipantNetworkManager;
         private bool isPlaybackMuted;
+        private float playbackVolume = 1f;
+        private SpeakerIdentity speakerIdentity;
 
         private void Awake() {
             relayTargets = new(16, Allocator.Persistent);
@@ -76,6 +85,19 @@ namespace Lockyaw.VoiceChat {
                 relayTargets.Dispose();
             }
             base.OnDestroy();
+        }
+
+        private void OnEnable() {
+            VoiceChatSettings.OnSendingEnabled.Listen(HandleSendingEnabledChanged);
+            VoiceChatSettings.OnReceivingEnabled.Listen(HandleReceivingEnabledChanged);
+            if (CanWriteLocalState()) {
+                ApplyAudioSettings();
+            }
+        }
+
+        private void OnDisable() {
+            VoiceChatSettings.OnSendingEnabled.Unlisten(HandleSendingEnabledChanged);
+            VoiceChatSettings.OnReceivingEnabled.Unlisten(HandleReceivingEnabledChanged);
         }
 
         private void Reset() {
@@ -147,6 +169,19 @@ namespace Lockyaw.VoiceChat {
             SetPlaybackMuted(!isPlaybackMuted);
         }
 
+        public void SetPlaybackVolume(float volume) {
+            if (float.IsNaN(volume)) { return; }
+            float normalizedVolume = Mathf.Clamp01(volume);
+            if (playbackVolume == normalizedVolume) { return; }
+
+            playbackVolume = normalizedVolume;
+            CacheComponentReferences();
+            if (speakerOutput != null) {
+                speakerOutput.RefreshLocalVolume();
+            }
+            OnPlaybackVolume.Dispatch(playbackVolume);
+        }
+
         public void SetTransmissionHeld(bool isHeld) {
             if (microphoneInput == null) { return; }
             microphoneInput.SetTransmissionHeld(isHeld);
@@ -165,7 +200,7 @@ namespace Lockyaw.VoiceChat {
         }
 
         internal void SendFrame(VoiceFrame frame) {
-            if (!IsSpawned || !IsClient || !IsOwner || !isActiveAndEnabled || IsInputMuted || IsDeafened || !frame.IsValid) { return; }
+            if (!VoiceChatSettings.IsSendingEnabled || !IsSendingEnabled || !IsSpawned || !IsClient || !IsOwner || !isActiveAndEnabled || IsInputMuted || IsDeafened || !frame.IsValid) { return; }
 
             frame.SourceClientId = OwnerClientId;
             frame = frame.WithMembership(GetMembership());
@@ -182,7 +217,7 @@ namespace Lockyaw.VoiceChat {
 
         internal void SetLocalActivity(bool isSpeaking, byte level) {
             if (!CanWriteLocalState()) { return; }
-            SetState(participantState.Value.WithActivity(isSpeaking, level));
+            SetState(participantState.Value.WithActivity(isSpeaking && VoiceChatSettings.IsSendingEnabled, level));
         }
 
         internal void SetConversationGroup(ConversationGroup newConversationGroup) {
@@ -203,6 +238,29 @@ namespace Lockyaw.VoiceChat {
             return false;
         }
 
+        internal static bool IsClientSendingEnabled(NetworkManager networkManager, ulong clientId) {
+            if (networkManager == null) { return false; }
+            if (networkManager.IsClient && clientId == networkManager.LocalClientId) {
+                return VoiceChatSettings.IsSendingEnabled;
+            }
+            VoiceParticipant participant = GetClientParticipant(networkManager, clientId);
+            return participant == null || participant.IsSendingEnabled;
+        }
+
+        internal static bool IsClientReceivingEnabled(NetworkManager networkManager, ulong clientId) {
+            if (networkManager == null) { return false; }
+            if (networkManager.IsClient && clientId == networkManager.LocalClientId) {
+                return VoiceChatSettings.IsReceivingEnabled;
+            }
+            VoiceParticipant participant = GetClientParticipant(networkManager, clientId);
+            return participant == null || participant.IsReceivingEnabled;
+        }
+
+        public static bool TryGet(NetworkManager networkManager, ulong clientId, out VoiceParticipant participant) {
+            participant = networkManager == null ? null : GetClientParticipant(networkManager, clientId);
+            return participant != null;
+        }
+
         public static bool TryGetLocal(out VoiceParticipant participant) {
             participant = LocalParticipant;
             return participant != null && participant.IsSpawned;
@@ -213,6 +271,10 @@ namespace Lockyaw.VoiceChat {
             if (speakerOutput != null) {
                 speakerOutput.RetirePlaybackStream(previousOwnerClientId);
             }
+            if (previousOwnerClientId != currentOwnerClientId) {
+                SetPlaybackVolume(1f);
+                SetPlaybackMuted(false);
+            }
             base.OnOwnershipChanged(previousOwnerClientId, currentOwnerClientId);
         }
 
@@ -221,6 +283,8 @@ namespace Lockyaw.VoiceChat {
             spawnedParticipants.Clear();
             localParticipantsByNetworkManager.Clear();
             localParticipant = null;
+            OnParticipantJoin.Clear();
+            OnParticipantLeave.Clear();
         }
 
         [Rpc(SendTo.Authority, Delivery = RpcDelivery.Unreliable, InvokePermission = RpcInvokePermission.Owner)]
@@ -230,6 +294,7 @@ namespace Lockyaw.VoiceChat {
 
         private void SubmitFrameAtAuthority(VoiceFrame frame, ulong senderClientId) {
             if (!HasAuthority ||
+                !IsSendingEnabled ||
                 !frame.IsValid ||
                 frame.Membership != GetMembership() ||
                 senderClientId != OwnerClientId ||
@@ -265,6 +330,17 @@ namespace Lockyaw.VoiceChat {
             DeliverFrame(frame);
         }
 
+        private void HandleSendingEnabledChanged(bool isEnabled) {
+            if (!CanWriteLocalState()) { return; }
+            ParticipantState state = participantState.Value.WithSendingEnabled(isEnabled);
+            SetState(isEnabled ? state : state.WithActivity(false, 0));
+        }
+
+        private void HandleReceivingEnabledChanged(bool isEnabled) {
+            if (!CanWriteLocalState()) { return; }
+            SetState(participantState.Value.WithReceivingEnabled(isEnabled));
+        }
+
         private void HandleStateChanged(ParticipantState previousState, ParticipantState currentState) {
             OnStateChanged.Dispatch(currentState);
             if (previousState.IsInputMuted != currentState.IsInputMuted) {
@@ -289,8 +365,17 @@ namespace Lockyaw.VoiceChat {
             ParticipantState initialState = participantState.Value
                 .WithInputMuted(startInputMuted)
                 .WithDeafened(startDeafened)
+                .WithSendingEnabled(VoiceChatSettings.IsSendingEnabled)
+                .WithReceivingEnabled(VoiceChatSettings.IsReceivingEnabled)
                 .WithActivity(false, 0);
             SetState(initialState);
+        }
+
+        private void ApplyAudioSettings() {
+            ParticipantState state = participantState.Value
+                .WithSendingEnabled(VoiceChatSettings.IsSendingEnabled)
+                .WithReceivingEnabled(VoiceChatSettings.IsReceivingEnabled);
+            SetState(VoiceChatSettings.IsSendingEnabled ? state : state.WithActivity(false, 0));
         }
 
         private void EndLocalOwnership() {
@@ -323,14 +408,17 @@ namespace Lockyaw.VoiceChat {
         private void RegisterParticipant() {
             if (spawnedParticipants.Contains(this)) { return; }
             spawnedParticipants.Add(this);
+            OnParticipantJoin.Dispatch(this);
         }
 
         private void UnregisterParticipant() {
-            spawnedParticipants.Remove(this);
+            if (!spawnedParticipants.Remove(this)) { return; }
+            OnParticipantLeave.Dispatch(this);
         }
 
         private void DeliverFrame(VoiceFrame frame) {
-            if (!frame.IsValid ||
+            if (!VoiceChatSettings.IsReceivingEnabled ||
+                !frame.IsValid ||
                 speakerOutput == null ||
                 frame.Membership != GetMembership() ||
                 frame.SourceClientId != OwnerClientId) {
@@ -364,7 +452,11 @@ namespace Lockyaw.VoiceChat {
                 ulong listenerClientId = playerObject.OwnerClientId;
                 if (listenerClientId == OwnerClientId || !NetworkObject.IsNetworkVisibleTo(listenerClientId) || ContainsRelayTarget(listenerClientId)) { continue; }
 
-                if (!playerObject.TryGetComponent(out VoiceParticipant listener) || !sourceMembership.Reaches(listener.GetMembership())) { continue; }
+                if (!playerObject.TryGetComponent(out VoiceParticipant listener) ||
+                    !listener.IsReceivingEnabled ||
+                    !sourceMembership.Reaches(listener.GetMembership())) {
+                    continue;
+                }
                 relayTargets.Add(listenerClientId);
             }
             return relayTargets.Length > 0;
@@ -412,6 +504,13 @@ namespace Lockyaw.VoiceChat {
             return true;
         }
 
+        private SpeakerIdentity GetIdentity() {
+            if (speakerIdentity == null) {
+                TryGetComponent(out speakerIdentity);
+            }
+            return speakerIdentity;
+        }
+
         private ConversationMembership GetMembership() {
             return conversationGroup == null
                 ? new(ConversationMembership.EVERYONE, 0)
@@ -420,6 +519,16 @@ namespace Lockyaw.VoiceChat {
 
         private VoiceParticipant GetLocalParticipantForManager() {
             return TryGetLocal(NetworkManager, out VoiceParticipant localVoiceParticipant) ? localVoiceParticipant : null;
+        }
+
+        private static VoiceParticipant GetClientParticipant(NetworkManager networkManager, ulong clientId) {
+            for (int i = 0; i < spawnedParticipants.Count; i++) {
+                VoiceParticipant participant = spawnedParticipants[i];
+                if (participant != null && participant.IsSpawned && participant.NetworkManager == networkManager && participant.OwnerClientId == clientId) {
+                    return participant;
+                }
+            }
+            return null;
         }
 
         private static VoiceParticipant GetFallbackLocalParticipant() {

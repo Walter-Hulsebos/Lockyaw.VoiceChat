@@ -1,11 +1,8 @@
 using System;
-using System.Threading;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.Audio;
 using UnityEngine.Pool;
-
-using Object = UnityEngine.Object;
 
 namespace Lockyaw.VoiceChat {
 
@@ -41,7 +38,9 @@ namespace Lockyaw.VoiceChat {
         public AudioSource AudioSource => audioSource;
         public SpatializationMode Spatialization => spatialization;
         public float LocalVolume => localVolume;
-        public int BufferedSamples => sampleBuffer == null ? 0 : sampleBuffer.GetSampleCount();
+        public int BufferedSamples => sampleBuffer == null
+            ? 0
+            : sampleBuffer.GetSampleCount() + (playbackRenderer == null ? 0 : playbackRenderer.BufferedContentSamples);
 
         private static readonly ObjectPool<VoiceDecoderSession> decoderPool = new(
             CreateDecoder,
@@ -57,13 +56,13 @@ namespace Lockyaw.VoiceChat {
         private const int MAXIMUM_PENDING_ENCODED_FRAMES = 16;
         private const uint MAXIMUM_SEQUENCE_ADVANCE = 1024;
         private const string VOICE_PLAYBACK_OBJECT_NAME = "Voice Playback";
-        private const float RECEIVE_TIMEOUT = .5f;
+        private const float PITCH_CORRECTION_ACTIVITY_TIMEOUT = .25f;
 
         private VoiceDecoderSession decoder;
         private EncodedFrameReorderBuffer reorderBuffer;
         private SampleRingBuffer sampleBuffer;
-        private AudioClip playbackClip;
-        private int registeredPlaybackSourceId;
+        private CircularAudioClipRenderer playbackRenderer;
+        private ulong registeredPlaybackSourceId;
         private double lastFrameReceivedAt;
         private double nextDecoderWarningAt;
         private double nextFrameLevelWarningAt;
@@ -79,8 +78,8 @@ namespace Lockyaw.VoiceChat {
         private long forwardErrorCorrectionAttempts;
         private long concealedFrames;
         private long decoderResets;
-        private int audioCallbackSamples;
         private int maximumPendingEncodedFrames;
+        private int targetPlaybackSamples;
         private bool wasLocallyMuted;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -101,6 +100,7 @@ namespace Lockyaw.VoiceChat {
         }
 
         private void OnEnable() {
+            VoiceChatSettings.OnReceivingEnabled.Listen(HandleReceivingEnabledChanged);
             RegisterPlaybackSource();
             if (IsSpawned && NetworkManager != null && NetworkManager.IsClient) {
                 StartPlayback();
@@ -108,11 +108,12 @@ namespace Lockyaw.VoiceChat {
         }
 
         private void OnDisable() {
+            VoiceChatSettings.OnReceivingEnabled.Unlisten(HandleReceivingEnabledChanged);
             StopPlayback();
         }
 
         private void Update() {
-            if (audioSource == null || sampleBuffer == null || reorderBuffer == null) { return; }
+            if (audioSource == null || sampleBuffer == null || reorderBuffer == null || playbackRenderer == null) { return; }
 
             bool isLocallyMuted = GetIsLocallyMuted();
             audioSource.mute = isLocallyMuted;
@@ -125,13 +126,15 @@ namespace Lockyaw.VoiceChat {
             if (!isLocallyMuted) {
                 ProcessPendingFrames(currentTime, false);
             }
-            if (currentTime - lastFrameReceivedAt > RECEIVE_TIMEOUT && reorderBuffer.HasStarted) {
-                ResetPlayback();
+            if (playbackRenderer == null || sampleBuffer == null) { return; }
+
+            playbackRenderer.Update(sampleBuffer.GetSampleCount() >= targetPlaybackSamples);
+            if (!playbackRenderer.HasStarted || currentTime - lastFrameReceivedAt > PITCH_CORRECTION_ACTIVITY_TIMEOUT) {
+                audioSource.pitch = 1f;
+                return;
             }
 
-            float configuredTargetSamples = VoiceEncoderSession.SAMPLE_RATE * targetBufferMilliseconds / 1000f;
-            float targetSamples = Math.Max(configuredTargetSamples, Volatile.Read(ref audioCallbackSamples));
-            float bufferedErrorSeconds = (sampleBuffer.GetSampleCount() - targetSamples) / VoiceEncoderSession.SAMPLE_RATE;
+            float bufferedErrorSeconds = (BufferedSamples - targetPlaybackSamples) / (float)VoiceEncoderSession.SAMPLE_RATE;
             float pitchCorrection = Mathf.Clamp(bufferedErrorSeconds * pitchCorrectionGain, -maxPitchCorrection, maxPitchCorrection);
             audioSource.pitch = 1f + pitchCorrection;
         }
@@ -197,9 +200,7 @@ namespace Lockyaw.VoiceChat {
 
         public void SetLocalVolume(float volume) {
             localVolume = Mathf.Clamp(volume, 0f, 2f);
-            if (audioSource != null) {
-                audioSource.volume = localVolume;
-            }
+            RefreshLocalVolume();
         }
 
         public void ClearPlayback() {
@@ -212,8 +213,8 @@ namespace Lockyaw.VoiceChat {
             if (reorderBuffer != null) {
                 reorderBuffer.Clear();
             }
-            if (audioSource != null) {
-                audioSource.pitch = 1f;
+            if (playbackRenderer != null) {
+                playbackRenderer.Reset();
             }
         }
 
@@ -234,16 +235,18 @@ namespace Lockyaw.VoiceChat {
             if (sampleBuffer != null) {
                 sampleBuffer.ResetDiagnostics();
             }
+            if (playbackRenderer != null) {
+                playbackRenderer.ResetDiagnostics();
+            }
         }
 
         public VoicePlaybackDiagnostics GetDiagnostics() {
             SampleRingBuffer playbackBuffer = sampleBuffer;
             AudioSettings.GetDSPBufferSize(out int dspBufferSamples, out int dspBufferCount);
-            float bufferedMilliseconds = playbackBuffer == null
-                ? 0f
-                : playbackBuffer.GetSampleCount() * 1000f / VoiceEncoderSession.SAMPLE_RATE;
+            CircularAudioClipRenderer renderer = playbackRenderer;
+            float bufferedMilliseconds = BufferedSamples * 1000f / VoiceEncoderSession.SAMPLE_RATE;
             return new(
-                Volatile.Read(ref audioCallbackSamples),
+                0,
                 AudioSettings.outputSampleRate,
                 dspBufferSamples,
                 dspBufferCount,
@@ -266,7 +269,18 @@ namespace Lockyaw.VoiceChat {
                 playbackBuffer == null ? 0 : playbackBuffer.RebufferCount,
                 playbackBuffer == null ? 0 : playbackBuffer.ConcurrentReadAbortCount,
                 playbackBuffer == null ? 0 : playbackBuffer.PartialReadCount,
-                playbackBuffer == null ? 0f : playbackBuffer.OverflowedSampleCount * 1000f / VoiceEncoderSession.SAMPLE_RATE);
+                playbackBuffer == null ? 0f : playbackBuffer.OverflowedSampleCount * 1000f / VoiceEncoderSession.SAMPLE_RATE,
+                renderer == null ? 0 : renderer.RenderQuantumSamples,
+                renderer == null ? 0f : renderer.ScheduledLeadSamples * 1000f / VoiceEncoderSession.SAMPLE_RATE,
+                renderer == null ? 0L : renderer.UnderrunCount,
+                renderer == null ? 0L : renderer.RebaseCount);
+        }
+
+        internal void RefreshLocalVolume() {
+            CacheComponentReferences();
+            if (audioSource == null) { return; }
+            float participantVolume = participant == null ? 1f : participant.PlaybackVolume;
+            audioSource.volume = localVolume * participantVolume;
         }
 
         internal void RetirePlaybackStream(ulong sourceClientId) {
@@ -281,8 +295,8 @@ namespace Lockyaw.VoiceChat {
             if (reorderBuffer != null) {
                 reorderBuffer.RetireCurrentStream(sourceClientId);
             }
-            if (audioSource != null) {
-                audioSource.pitch = 1f;
+            if (playbackRenderer != null) {
+                playbackRenderer.Reset();
             }
         }
 
@@ -296,13 +310,13 @@ namespace Lockyaw.VoiceChat {
             if (reorderBuffer != null) {
                 reorderBuffer.ResetCurrentStream();
             }
-            if (audioSource != null) {
-                audioSource.pitch = 1f;
+            if (playbackRenderer != null) {
+                playbackRenderer.Reset();
             }
         }
 
         internal void ReceiveFrame(VoiceFrame frame) {
-            if (decoder == null || reorderBuffer == null || sampleBuffer == null || !frame.IsValid || GetIsLocallyMuted()) { return; }
+            if (decoder == null || reorderBuffer == null || sampleBuffer == null || playbackRenderer == null || !frame.IsValid || GetIsLocallyMuted()) { return; }
 
             receivedFrames++;
             double receivedAt = Time.unscaledTimeAsDouble;
@@ -349,13 +363,19 @@ namespace Lockyaw.VoiceChat {
             ProcessPendingFrames(receivedAt, forceDeadline);
         }
 
-        private void HandleAudioRead(float[] outputSamples, SampleRingBuffer playbackBuffer) {
-            Volatile.Write(ref audioCallbackSamples, outputSamples.Length);
-            playbackBuffer.Read(outputSamples.AsSpan());
+        private void HandleReceivingEnabledChanged(bool isEnabled) {
+            if (!isEnabled) {
+                StopPlayback();
+                return;
+            }
+            if (isActiveAndEnabled && IsSpawned && NetworkManager != null && NetworkManager.IsClient) {
+                StartPlayback();
+            }
         }
 
         private void StartPlayback() {
             StopPlayback();
+            if (!VoiceChatSettings.IsReceivingEnabled) { return; }
             EnsureAudioSource();
             if (audioSource == null) {
                 Debug.LogError("Speaker needs an AudioSource.", this);
@@ -364,35 +384,31 @@ namespace Lockyaw.VoiceChat {
 
             ConfigureAudioSource();
             int maxBufferSamples = VoiceEncoderSession.SAMPLE_RATE * maxBufferMilliseconds / 1000;
-            int prebufferSamples = VoiceEncoderSession.SAMPLE_RATE * targetBufferMilliseconds / 1000;
-            SampleRingBuffer playbackBuffer = new(maxBufferSamples, prebufferSamples);
+            int configuredTargetSamples = VoiceEncoderSession.SAMPLE_RATE * targetBufferMilliseconds / 1000;
+            int renderLeadSamples = GetRenderLeadSamples(maxBufferSamples, configuredTargetSamples);
+            targetPlaybackSamples = Math.Min(maxBufferSamples, configuredTargetSamples + renderLeadSamples);
+            SampleRingBuffer playbackBuffer = new(maxBufferSamples, targetPlaybackSamples);
             sampleBuffer = playbackBuffer;
             decoder = decoderPool.Get();
             reorderBuffer = new(MAXIMUM_PENDING_ENCODED_FRAMES, maximumReorderDelayMilliseconds, MAXIMUM_SEQUENCE_ADVANCE);
-            playbackClip = AudioClip.Create(
+            playbackRenderer = new CircularAudioClipRenderer(
+                audioSource,
                 $"Voice {NetworkObjectId}",
-                VoiceEncoderSession.SAMPLE_RATE,
-                1,
-                VoiceEncoderSession.SAMPLE_RATE,
-                true,
-                outputSamples => HandleAudioRead(outputSamples, playbackBuffer));
-            audioSource.clip = playbackClip;
+                renderLeadSamples,
+                maxBufferSamples,
+                playbackBuffer.Read);
             RegisterPlaybackSource();
-            audioSource.Play();
         }
 
         private void StopPlayback() {
             UnregisterPlaybackSource();
             if (audioSource != null) {
                 audioSource.Stop();
-                if (audioSource.clip == playbackClip) {
-                    audioSource.clip = null;
-                }
                 audioSource.pitch = 1f;
             }
-            if (playbackClip != null) {
-                Object.Destroy(playbackClip);
-                playbackClip = null;
+            if (playbackRenderer != null) {
+                playbackRenderer.Dispose();
+                playbackRenderer = null;
             }
             if (decoder != null) {
                 decoderPool.Release(decoder);
@@ -400,6 +416,7 @@ namespace Lockyaw.VoiceChat {
             }
             reorderBuffer = null;
             sampleBuffer = null;
+            targetPlaybackSamples = 0;
         }
 
         private void ProcessPendingFrames(double currentTime, bool forceDeadline) {
@@ -408,10 +425,13 @@ namespace Lockyaw.VoiceChat {
             VoiceDecoderSession processingDecoder = decoder;
             EncodedFrameReorderBuffer processingReorderBuffer = reorderBuffer;
             SampleRingBuffer processingSampleBuffer = sampleBuffer;
+            int renderQuantumSamples = playbackRenderer == null
+                ? (int)VoiceFrameLength.TwentyMilliseconds
+                : playbackRenderer.RenderQuantumSamples;
             while (processingReorderBuffer.TryTake(
                 currentTime,
-                processingSampleBuffer.GetSampleCount(),
-                Volatile.Read(ref audioCallbackSamples),
+                BufferedSamples,
+                renderQuantumSamples,
                 forceDeadline,
                 out VoiceFrame frame,
                 out uint missingFrameCount,
@@ -442,25 +462,29 @@ namespace Lockyaw.VoiceChat {
             missingFrames += missingFrameCount;
             intentionalSilenceSamples += intentionalSilenceSampleCount;
             long trailingSilenceSampleCount = sampleBuffer.TakeTrailingSilenceSampleCount();
+            long missingSampleCount = (long)missingFrameCount * frame.SampleCount;
+            long totalGapSampleCount = missingSampleCount + intentionalSilenceSampleCount;
+            long remainingGapSampleCount = Math.Max(0L, totalGapSampleCount - trailingSilenceSampleCount);
             if (intentionalSilenceSampleCount > 0) {
-                if (missingFrameCount <= maxConcealedFrames) {
+                if (trailingSilenceSampleCount == 0L && missingFrameCount <= maxConcealedFrames) {
                     concealedFrames += missingFrameCount;
                     for (uint i = 0; i < missingFrameCount; i++) {
                         sampleBuffer.Write(decoder.Conceal(frame.SampleCount));
                     }
+                    remainingGapSampleCount -= missingSampleCount;
                 }
 
                 decoder.ResetState();
                 decoderResets++;
-                long remainingSilenceSampleCount = Math.Max(0L, intentionalSilenceSampleCount - trailingSilenceSampleCount);
-                sampleBuffer.WriteSilence((int)Math.Min(remainingSilenceSampleCount, sampleBuffer.Capacity));
+                sampleBuffer.WriteSilence((int)Math.Min(remainingGapSampleCount, sampleBuffer.Capacity));
                 sampleBuffer.Write(decoder.Decode(frame, false));
                 return;
             }
 
-            if (missingFrameCount > maxConcealedFrames) {
+            if (missingFrameCount > maxConcealedFrames || trailingSilenceSampleCount > 0L) {
                 decoder.ResetState();
                 decoderResets++;
+                sampleBuffer.WriteSilence((int)Math.Min(remainingGapSampleCount, sampleBuffer.Capacity));
             }
             else if (missingFrameCount > 0) {
                 forwardErrorCorrectionAttempts++;
@@ -511,7 +535,7 @@ namespace Lockyaw.VoiceChat {
                 return;
             }
 
-            int audioSourceId = audioSource.GetInstanceID();
+            ulong audioSourceId = PlaybackSourceRegistry.GetSourceId(audioSource);
             if (registeredPlaybackSourceId == audioSourceId) { return; }
 
             UnregisterPlaybackSource();
@@ -557,7 +581,7 @@ namespace Lockyaw.VoiceChat {
             audioSource.rolloffMode = AudioRolloffMode.Linear;
             audioSource.outputAudioMixerGroup = outputMixerGroup;
             audioSource.spatializePostEffects = true;
-            audioSource.volume = localVolume;
+            RefreshLocalVolume();
 
             switch (spatialization) {
                 case SpatializationMode.TwoDimensional:
@@ -585,7 +609,16 @@ namespace Lockyaw.VoiceChat {
             voiceDecoder.Dispose();
         }
 
+        private static int GetRenderLeadSamples(int maxBufferSamples, int configuredTargetSamples) {
+            AudioSettings.GetDSPBufferSize(out int dspBufferSamples, out int dspBufferCount);
+            int desiredRenderLeadSamples = Math.Max(
+                (int)VoiceFrameLength.TwentyMilliseconds * 2,
+                dspBufferSamples * dspBufferCount);
+            return Math.Clamp(desiredRenderLeadSamples, 1, Math.Max(1, maxBufferSamples - configuredTargetSamples));
+        }
+
         private bool GetIsLocallyMuted() {
+            if (!VoiceChatSettings.IsReceivingEnabled) { return true; }
             if (participant != null && participant.IsPlaybackMuted) { return true; }
 
             VoiceParticipant localVoiceParticipant;

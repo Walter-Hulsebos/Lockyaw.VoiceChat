@@ -17,8 +17,9 @@ namespace Lockyaw.VoiceChat.Editor {
             EditorGUILayout.LabelField("Live Playback Quality", EditorStyles.boldLabel);
             EditorGUILayout.LabelField("Output Format", $"{diagnostics.OutputSampleRate} Hz");
             EditorGUILayout.LabelField("DSP Buffer", $"{diagnostics.DspBufferSamples} samples × {diagnostics.DspBufferCount}");
-            EditorGUILayout.LabelField("Audio Callback", $"{diagnostics.AudioCallbackSamples} samples");
+            EditorGUILayout.LabelField("Render Quantum", $"{diagnostics.RenderQuantumSamples} samples");
             EditorGUILayout.LabelField("Buffered Audio", $"{diagnostics.BufferedMilliseconds:F1} ms");
+            EditorGUILayout.LabelField("Scheduled Lead", $"{diagnostics.ScheduledLeadMilliseconds:F1} ms");
             EditorGUILayout.LabelField("Received Frames", diagnostics.ReceivedFrames.ToString());
             EditorGUILayout.LabelField("Missing Frames", diagnostics.MissingFrames.ToString());
             EditorGUILayout.LabelField("Intentional Silence", $"{diagnostics.IntentionalSilenceMilliseconds:F1} ms");
@@ -38,6 +39,8 @@ namespace Lockyaw.VoiceChat.Editor {
             EditorGUILayout.LabelField("Concurrent Read Aborts", diagnostics.ConcurrentReadAborts.ToString());
             EditorGUILayout.LabelField("Partial Reads", diagnostics.PartialReads.ToString());
             EditorGUILayout.LabelField("Overflowed Audio", $"{diagnostics.OverflowedMilliseconds:F1} ms");
+            EditorGUILayout.LabelField("Renderer Underruns", diagnostics.RendererUnderruns.ToString());
+            EditorGUILayout.LabelField("Renderer Rebases", diagnostics.RendererRebases.ToString());
             if (GUILayout.Button("Reset Playback Measurements")) {
                 speaker.ResetDiagnostics();
             }

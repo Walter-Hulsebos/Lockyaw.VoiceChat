@@ -17,7 +17,7 @@ namespace Lockyaw.VoiceChat {
 
         internal VoiceEncoderSession(VoiceCodecSettings settings) {
             streamId = unchecked((uint)Guid.NewGuid().GetHashCode());
-            encoder = OpusCodecFactory.CreateEncoder(SAMPLE_RATE, 1, OpusApplication.OPUS_APPLICATION_VOIP);
+            encoder = VoiceCodecFactory.CreateEncoder();
             encoder.Bitrate = settings.BitRate;
             encoder.Complexity = settings.Complexity;
             encoder.MaxBandwidth = OpusBandwidth.OPUS_BANDWIDTH_FULLBAND;

@@ -7,7 +7,9 @@ namespace Lockyaw.VoiceChat {
         None = 0,
         InputMuted = 1 << 0,
         Deafened = 1 << 1,
-        Speaking = 1 << 2
+        Speaking = 1 << 2,
+        SendingDisabled = 1 << 3,
+        ReceivingDisabled = 1 << 4
     }
 
 }

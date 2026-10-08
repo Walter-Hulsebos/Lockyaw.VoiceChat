@@ -6,7 +6,10 @@ namespace Lockyaw.VoiceChat {
 
         internal int BufferedSamples => sampleBuffer.GetSampleCount();
         internal double LastFrameReceivedAt => lastFrameReceivedAt;
-        internal bool IsActive => reorderBuffer.HasStarted;
+        internal bool CanStart => BufferedSamples >= prebufferSamples;
+        internal bool IsActive => reorderBuffer.HasStarted && !isTimedOut;
+        internal ulong OriginClientId { get; set; } = BroadcastRoute.UNASSIGNED_CLIENT_ID;
+        internal float PlaybackVolume { get; set; } = 1f;
 
         private const int MAXIMUM_PENDING_ENCODED_FRAMES = 16;
         private const int MIX_BUFFER_SAMPLES = 4096;
@@ -17,9 +20,11 @@ namespace Lockyaw.VoiceChat {
         private readonly SampleRingBuffer sampleBuffer;
         private readonly float[] mixSamples = new float[MIX_BUFFER_SAMPLES];
         private readonly int maxConcealedFrames;
+        private readonly int prebufferSamples;
         private double lastFrameReceivedAt;
         private byte pendingFrameLevel;
         private bool hasPendingFrameLevel;
+        private bool isTimedOut;
 
         internal BroadcastPlaybackStream(
             int maxBufferSamples,
@@ -29,6 +34,7 @@ namespace Lockyaw.VoiceChat {
             sampleBuffer = new SampleRingBuffer(maxBufferSamples, prebufferSamples);
             reorderBuffer = new(MAXIMUM_PENDING_ENCODED_FRAMES, maximumReorderDelayMilliseconds, MAXIMUM_SEQUENCE_ADVANCE);
             this.maxConcealedFrames = maxConcealedFrames;
+            this.prebufferSamples = prebufferSamples;
         }
 
         public void Dispose() {
@@ -36,6 +42,7 @@ namespace Lockyaw.VoiceChat {
             reorderBuffer.Clear();
             sampleBuffer.Clear();
             hasPendingFrameLevel = false;
+            isTimedOut = false;
         }
 
         internal void Clear() {
@@ -43,6 +50,7 @@ namespace Lockyaw.VoiceChat {
             decoder.ResetState();
             reorderBuffer.Clear();
             hasPendingFrameLevel = false;
+            isTimedOut = false;
         }
 
         internal void ResetPlayback() {
@@ -50,9 +58,10 @@ namespace Lockyaw.VoiceChat {
             decoder.ResetState();
             reorderBuffer.ResetCurrentStream();
             hasPendingFrameLevel = false;
+            isTimedOut = false;
         }
 
-        internal void Receive(VoiceFrame frame, double receivedAt, int audioCallbackSamples) {
+        internal void Receive(VoiceFrame frame, double receivedAt, int renderQuantumSamples) {
             if (!frame.IsValid) { return; }
 
             EncodedFrameReorderBuffer.Arrival arrival = reorderBuffer.Enqueue(frame, receivedAt);
@@ -65,7 +74,7 @@ namespace Lockyaw.VoiceChat {
                 return;
             }
             if (arrival == EncodedFrameReorderBuffer.Arrival.CapacityReached) {
-                Process(receivedAt, audioCallbackSamples, true);
+                Process(receivedAt, renderQuantumSamples, true);
                 arrival = reorderBuffer.Enqueue(frame, receivedAt);
             }
             if (arrival == EncodedFrameReorderBuffer.Arrival.CapacityReached) { return; }
@@ -75,14 +84,15 @@ namespace Lockyaw.VoiceChat {
             }
 
             lastFrameReceivedAt = receivedAt;
-            Process(receivedAt, audioCallbackSamples, reorderBuffer.RequiresForcedDeadline);
+            isTimedOut = false;
+            Process(receivedAt, renderQuantumSamples, reorderBuffer.RequiresForcedDeadline);
         }
 
-        internal void Process(double currentTime, int audioCallbackSamples, bool forceDeadline) {
+        internal void Process(double currentTime, int renderQuantumSamples, bool forceDeadline) {
             while (reorderBuffer.TryTake(
                 currentTime,
                 sampleBuffer.GetSampleCount(),
-                audioCallbackSamples,
+                renderQuantumSamples,
                 forceDeadline,
                 out VoiceFrame frame,
                 out uint missingFrameCount,
@@ -102,17 +112,20 @@ namespace Lockyaw.VoiceChat {
             }
         }
 
-        internal void MixInto(Span<float> destination) {
+        internal int MixInto(Span<float> destination) {
             int destinationIndex = 0;
+            int mixedSampleCount = 0;
             while (destinationIndex < destination.Length) {
                 int samplesToRead = Math.Min(mixSamples.Length, destination.Length - destinationIndex);
                 Span<float> samples = mixSamples.AsSpan(0, samplesToRead);
-                sampleBuffer.Read(samples);
+                int readSampleCount = sampleBuffer.Read(samples);
                 for (int i = 0; i < samplesToRead; i++) {
-                    destination[destinationIndex + i] += samples[i];
+                    destination[destinationIndex + i] += samples[i] * PlaybackVolume;
                 }
+                mixedSampleCount += readSampleCount;
                 destinationIndex += samplesToRead;
             }
+            return mixedSampleCount;
         }
 
         internal bool TryConsumeFrameLevel(out byte frameLevel) {
@@ -124,27 +137,35 @@ namespace Lockyaw.VoiceChat {
         }
 
         internal bool HasTimedOut(double currentTime, float timeout) {
-            return reorderBuffer.HasStarted && currentTime - lastFrameReceivedAt > timeout;
+            return reorderBuffer.HasStarted && !isTimedOut && currentTime - lastFrameReceivedAt > timeout;
+        }
+
+        internal void MarkTimedOut() {
+            isTimedOut = true;
         }
 
         private void DecodeFrame(VoiceFrame frame, uint missingFrameCount, uint intentionalSilenceSampleCount) {
             long trailingSilenceSampleCount = sampleBuffer.TakeTrailingSilenceSampleCount();
+            long missingSampleCount = (long)missingFrameCount * frame.SampleCount;
+            long totalGapSampleCount = missingSampleCount + intentionalSilenceSampleCount;
+            long remainingGapSampleCount = Math.Max(0L, totalGapSampleCount - trailingSilenceSampleCount);
             if (intentionalSilenceSampleCount > 0) {
-                if (missingFrameCount <= maxConcealedFrames) {
+                if (trailingSilenceSampleCount == 0L && missingFrameCount <= maxConcealedFrames) {
                     for (uint i = 0; i < missingFrameCount; i++) {
                         sampleBuffer.Write(decoder.Conceal(frame.SampleCount));
                     }
+                    remainingGapSampleCount -= missingSampleCount;
                 }
 
                 decoder.ResetState();
-                long remainingSilenceSampleCount = Math.Max(0L, intentionalSilenceSampleCount - trailingSilenceSampleCount);
-                sampleBuffer.WriteSilence((int)Math.Min(remainingSilenceSampleCount, sampleBuffer.Capacity));
+                sampleBuffer.WriteSilence((int)Math.Min(remainingGapSampleCount, sampleBuffer.Capacity));
                 sampleBuffer.Write(decoder.Decode(frame, false));
                 return;
             }
 
-            if (missingFrameCount > maxConcealedFrames) {
+            if (missingFrameCount > maxConcealedFrames || trailingSilenceSampleCount > 0L) {
                 decoder.ResetState();
+                sampleBuffer.WriteSilence((int)Math.Min(remainingGapSampleCount, sampleBuffer.Capacity));
             }
             else if (missingFrameCount > 0) {
                 for (uint i = 1; i < missingFrameCount; i++) {
@@ -160,6 +181,7 @@ namespace Lockyaw.VoiceChat {
             decoder.ResetState();
             if (reorderBuffer.BeginStream(frame, receivedAt) != EncodedFrameReorderBuffer.Arrival.Accepted) { return; }
             lastFrameReceivedAt = receivedAt;
+            isTimedOut = false;
         }
 
     }

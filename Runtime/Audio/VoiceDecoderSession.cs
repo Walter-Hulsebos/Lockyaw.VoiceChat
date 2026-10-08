@@ -12,7 +12,7 @@ namespace Lockyaw.VoiceChat {
         private readonly float[] decodedSamples = new float[MAXIMUM_SAMPLES_PER_FRAME];
 
         internal VoiceDecoderSession() {
-            decoder = OpusCodecFactory.CreateDecoder(VoiceEncoderSession.SAMPLE_RATE, 1);
+            decoder = VoiceCodecFactory.CreateDecoder();
         }
 
         public void Dispose() {

@@ -5,14 +5,14 @@ namespace Lockyaw.VoiceChat {
 
     internal static class PlaybackSourceRegistry {
 
-        internal const int NO_SOURCE_ID = 0;
+        internal const ulong NO_SOURCE_ID = 0;
 
-        private static readonly Dictionary<int, int> referenceCounts = new(32);
+        private static readonly Dictionary<ulong, int> referenceCounts = new(32);
 
-        internal static int Register(AudioSource audioSource) {
+        internal static ulong Register(AudioSource audioSource) {
             if (audioSource == null) { return NO_SOURCE_ID; }
 
-            int audioSourceId = audioSource.GetInstanceID();
+            ulong audioSourceId = GetSourceId(audioSource);
             if (referenceCounts.TryGetValue(audioSourceId, out int referenceCount)) {
                 referenceCounts[audioSourceId] = referenceCount + 1;
             }
@@ -22,7 +22,7 @@ namespace Lockyaw.VoiceChat {
             return audioSourceId;
         }
 
-        internal static void Unregister(int audioSourceId) {
+        internal static void Unregister(ulong audioSourceId) {
             if (audioSourceId == NO_SOURCE_ID || !referenceCounts.TryGetValue(audioSourceId, out int referenceCount)) { return; }
 
             if (referenceCount <= 1) {
@@ -34,7 +34,16 @@ namespace Lockyaw.VoiceChat {
         }
 
         internal static bool Contains(AudioSource audioSource) {
-            return audioSource != null && referenceCounts.ContainsKey(audioSource.GetInstanceID());
+            return audioSource != null && referenceCounts.ContainsKey(GetSourceId(audioSource));
+        }
+
+        internal static ulong GetSourceId(AudioSource audioSource) {
+            if (audioSource == null) { return NO_SOURCE_ID; }
+#if UNITY_6000_7_OR_NEWER
+            return audioSource.GetEntityId().GetRawData();
+#else
+            return unchecked((ulong)audioSource.GetInstanceID());
+#endif
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]

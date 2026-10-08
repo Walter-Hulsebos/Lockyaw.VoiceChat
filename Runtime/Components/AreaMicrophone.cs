@@ -36,13 +36,13 @@ namespace Lockyaw.VoiceChat {
             internal AudioSource AudioSource { get; }
             internal bool IsPlaying { get; }
             internal float SquaredDistance { get; }
-            internal int InstanceId { get; }
+            internal ulong SourceId { get; }
 
             internal SourceCandidate(AudioSource audioSource, bool isPlaying, float squaredDistance) {
                 AudioSource = audioSource;
                 IsPlaying = isPlaying;
                 SquaredDistance = squaredDistance;
-                InstanceId = audioSource.GetInstanceID();
+                SourceId = PlaybackSourceRegistry.GetSourceId(audioSource);
             }
 
         }
@@ -106,12 +106,14 @@ namespace Lockyaw.VoiceChat {
         }
 
         private void OnEnable() {
+            VoiceChatSettings.OnSendingEnabled.Listen(HandleSendingEnabledChanged);
             if (IsSpawned) {
                 RegisterMicrophone();
             }
         }
 
         private void OnDisable() {
+            VoiceChatSettings.OnSendingEnabled.Unlisten(HandleSendingEnabledChanged);
             UnregisterMicrophone();
             DisposeWorldCapture();
         }
@@ -267,6 +269,7 @@ namespace Lockyaw.VoiceChat {
             if (!HasAuthority ||
                 !frame.IsValid ||
                 !IsOpen ||
+                !VoiceParticipant.IsClientSendingEnabled(NetworkManager, senderClientId) ||
                 senderClientId != CaptureClientId ||
                 frame.SourceClientId != senderClientId ||
                 !AcceptFrameAtAuthority(frame, senderClientId)) {
@@ -285,8 +288,13 @@ namespace Lockyaw.VoiceChat {
             RelayFrame(frame);
         }
 
+        private void HandleSendingEnabledChanged(bool isEnabled) {
+            if (isEnabled) { return; }
+            DisposeWorldCapture();
+        }
+
         private void CaptureWorldFrame() {
-            if (encoder == null || mixedSamples.Length == 0) { return; }
+            if (!VoiceChatSettings.IsSendingEnabled || encoder == null || mixedSamples.Length == 0) { return; }
 
             Array.Clear(mixedSamples, 0, mixedSamples.Length);
             int capturedSourceCount = 0;
@@ -488,6 +496,7 @@ namespace Lockyaw.VoiceChat {
                 ulong clientId = connectedClientIds[i];
                 if (clientId == NetworkManager.LocalClientId && !NetworkManager.IsClient) { continue; }
                 if (NetworkManager.CMBServiceConnection && clientId == NetworkManager.ServerClientId) { continue; }
+                if (!VoiceParticipant.IsClientSendingEnabled(NetworkManager, clientId)) { continue; }
                 if (!NetworkObject.IsNetworkVisibleTo(clientId) || clientId >= selectedClientId) { continue; }
                 selectedClientId = clientId;
             }
@@ -520,13 +529,15 @@ namespace Lockyaw.VoiceChat {
             }
 
             if (!originObject.TryGetComponent(out VoiceParticipant participant)) { return false; }
-            return participant.OwnerClientId == frame.Route.OriginClientId &&
+            return participant.IsSendingEnabled &&
+                   participant.OwnerClientId == frame.Route.OriginClientId &&
                    ContainsPosition(participant.transform.position) &&
                    CanCaptureVoiceFrom(frame.Route.OriginClientId);
         }
 
         private bool CanPrepareWorldAudio() {
-            return captureWorldAudio &&
+            return VoiceChatSettings.IsSendingEnabled &&
+                   captureWorldAudio &&
                    isActiveAndEnabled &&
                    IsSpawned &&
                    IsClient &&
@@ -635,7 +646,7 @@ namespace Lockyaw.VoiceChat {
             int distanceComparison = left.SquaredDistance.CompareTo(right.SquaredDistance);
             return distanceComparison != 0
                 ? distanceComparison
-                : left.InstanceId.CompareTo(right.InstanceId);
+                : left.SourceId.CompareTo(right.SourceId);
         }
 
         private static int FindChannelIndex(List<AreaMicrophone> microphones, int channel) {

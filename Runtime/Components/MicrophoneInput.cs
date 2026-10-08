@@ -31,6 +31,7 @@ namespace Lockyaw.VoiceChat {
         public readonly Signal<bool> OnCaptureActive = new();
 
         public string SelectedDeviceName => microphoneReader == null ? "" : microphoneReader.DeviceName;
+        public string RequestedDeviceName => requestedDeviceName;
         public bool IsCapturing => isCaptureActive;
         public bool IsTransmissionHeld => isTransmissionHeld;
         public VoiceCodecSettings CodecSettings => codecSettings;
@@ -69,11 +70,13 @@ namespace Lockyaw.VoiceChat {
         }
 
         private void OnEnable() {
+            VoiceChatSettings.OnSendingEnabled.Listen(HandleSendingEnabledChanged);
             if (!HasLocalCaptureOwnership()) { return; }
             StartCaptureAutomatically();
         }
 
         private void OnDisable() {
+            VoiceChatSettings.OnSendingEnabled.Unlisten(HandleSendingEnabledChanged);
             SuspendCapture();
         }
 
@@ -147,11 +150,11 @@ namespace Lockyaw.VoiceChat {
         }
 
         public void SetDevice(string deviceName) {
-            string normalizedDeviceName = deviceName == null ? "" : deviceName;
+            string normalizedDeviceName = string.IsNullOrWhiteSpace(deviceName) ? "" : deviceName;
             if (requestedDeviceName == normalizedDeviceName) { return; }
 
             requestedDeviceName = normalizedDeviceName;
-            if (IsSpawned && IsOwner) {
+            if (IsSpawned && IsOwner && isCaptureRequested) {
                 StartCapture();
             }
         }
@@ -190,7 +193,7 @@ namespace Lockyaw.VoiceChat {
             }
         }
 
-        public string[] GetAvailableDevices() => Microphone.devices;
+        public string[] GetAvailableDevices() => MicrophoneDevices.GetAvailableDevices();
 
         public VoiceCaptureDiagnostics GetDiagnostics() {
             return new(
@@ -204,6 +207,14 @@ namespace Lockyaw.VoiceChat {
                 suppressedFrames,
                 submittedFrames,
                 maximumFramesPerUpdate);
+        }
+
+        private void HandleSendingEnabledChanged(bool isEnabled) {
+            if (!isEnabled) {
+                SuspendCapture();
+                return;
+            }
+            StartCaptureAutomatically();
         }
 
         private IEnumerator StartCaptureRoutine() {
@@ -235,16 +246,20 @@ namespace Lockyaw.VoiceChat {
             }
 
             string selectedDeviceName = ResolveDeviceName();
+            if (string.IsNullOrEmpty(selectedDeviceName)) {
+                nextReconnectAt = Time.unscaledTime + reconnectInterval;
+                yield break;
+            }
             VoiceEncoderSession startedEncoder = null;
             MicrophoneReader startedReader = null;
             try {
-                startedEncoder = new(codecSettings);
                 startedReader = new(selectedDeviceName, codecSettings.SamplesPerFrame);
                 if (!startedReader.Start()) {
                     DisposeStartedResources(startedReader, startedEncoder);
                     nextReconnectAt = Time.unscaledTime + reconnectInterval;
                     yield break;
                 }
+                startedEncoder = new(codecSettings);
             }
             catch (Exception exception) {
                 DisposeStartedResources(startedReader, startedEncoder);
@@ -429,13 +444,7 @@ namespace Lockyaw.VoiceChat {
         }
 
         private string ResolveDeviceName() {
-            string[] deviceNames = Microphone.devices;
-            if (!string.IsNullOrWhiteSpace(requestedDeviceName)) {
-                for (int i = 0; i < deviceNames.Length; i++) {
-                    if (deviceNames[i] == requestedDeviceName) { return requestedDeviceName; }
-                }
-            }
-            return deviceNames.Length == 0 ? "" : deviceNames[0];
+            return MicrophoneDevices.ResolveDeviceName(requestedDeviceName, GetAvailableDevices());
         }
 
         private bool GetShouldTransmit(bool isVoiceActive) {
@@ -448,7 +457,8 @@ namespace Lockyaw.VoiceChat {
         }
 
         private bool CanCapture() {
-            return isActiveAndEnabled &&
+            return VoiceChatSettings.IsSendingEnabled &&
+                   isActiveAndEnabled &&
                    HasLocalCaptureOwnership() &&
                    participant.isActiveAndEnabled;
         }

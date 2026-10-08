@@ -12,6 +12,8 @@ namespace Lockyaw.VoiceChat {
         public bool IsInputMuted => (Flags & VoiceStateFlags.InputMuted) != 0;
         public bool IsDeafened => (Flags & VoiceStateFlags.Deafened) != 0;
         public bool IsSpeaking => (Flags & VoiceStateFlags.Speaking) != 0;
+        public bool IsSendingEnabled => (Flags & VoiceStateFlags.SendingDisabled) == 0;
+        public bool IsReceivingEnabled => (Flags & VoiceStateFlags.ReceivingDisabled) == 0;
 
         public ParticipantState(VoiceStateFlags flags, byte level, ushort revision) {
             Flags = flags;
@@ -28,6 +30,10 @@ namespace Lockyaw.VoiceChat {
         public ParticipantState WithInputMuted(bool isInputMuted) => WithFlag(VoiceStateFlags.InputMuted, isInputMuted);
 
         public ParticipantState WithDeafened(bool isDeafened) => WithFlag(VoiceStateFlags.Deafened, isDeafened);
+
+        public ParticipantState WithSendingEnabled(bool isEnabled) => WithFlag(VoiceStateFlags.SendingDisabled, !isEnabled);
+
+        public ParticipantState WithReceivingEnabled(bool isEnabled) => WithFlag(VoiceStateFlags.ReceivingDisabled, !isEnabled);
 
         public ParticipantState WithActivity(bool isSpeaking, byte level) {
             VoiceStateFlags flags = isSpeaking ? Flags | VoiceStateFlags.Speaking : Flags & ~VoiceStateFlags.Speaking;
