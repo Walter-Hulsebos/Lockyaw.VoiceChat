@@ -1,5 +1,4 @@
 using UnityEditor;
-using UnityEngine;
 
 namespace Lockyaw.VoiceChat.Editor {
 
@@ -8,45 +7,26 @@ namespace Lockyaw.VoiceChat.Editor {
 
         public override void OnInspectorGUI() {
             DrawDefaultInspector();
-
+            if (!EditorApplication.isPlaying) { return; }
             SpeakerOutput speaker = target as SpeakerOutput;
-            if (!Application.isPlaying || speaker == null) { return; }
-
+            if (speaker == null) { return; }
             VoicePlaybackDiagnostics diagnostics = speaker.GetDiagnostics();
             EditorGUILayout.Space();
-            EditorGUILayout.LabelField("Live Playback Quality", EditorStyles.boldLabel);
-            EditorGUILayout.LabelField("Output Format", $"{diagnostics.OutputSampleRate} Hz");
-            EditorGUILayout.LabelField("DSP Buffer", $"{diagnostics.DspBufferSamples} samples × {diagnostics.DspBufferCount}");
-            EditorGUILayout.LabelField("Render Quantum", $"{diagnostics.RenderQuantumSamples} samples");
-            EditorGUILayout.LabelField("Buffered Audio", $"{diagnostics.BufferedMilliseconds:F1} ms");
-            EditorGUILayout.LabelField("Scheduled Lead", $"{diagnostics.ScheduledLeadMilliseconds:F1} ms");
+            EditorGUILayout.LabelField("Playback", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Audio Callback", diagnostics.AudioCallbackSamples.ToString());
+            EditorGUILayout.LabelField("Output Rate", diagnostics.OutputSampleRate.ToString());
+            EditorGUILayout.LabelField("Buffered", $"{diagnostics.BufferedMilliseconds:F1} ms");
+            EditorGUILayout.LabelField("Target", $"{diagnostics.TargetMilliseconds:F1} ms");
+            EditorGUILayout.LabelField("Arrival Jitter", $"{diagnostics.JitterMilliseconds:F1} ms");
+            EditorGUILayout.LabelField("Output Buffer", $"{diagnostics.OutputBufferMilliseconds:F1} ms");
+            EditorGUILayout.LabelField("Loopback Latency", diagnostics.LoopbackLatencyMilliseconds > 0f ? $"{diagnostics.LoopbackLatencyMilliseconds + diagnostics.OutputBufferMilliseconds:F1} ms" : "Not measured");
             EditorGUILayout.LabelField("Received Frames", diagnostics.ReceivedFrames.ToString());
-            EditorGUILayout.LabelField("Missing Frames", diagnostics.MissingFrames.ToString());
-            EditorGUILayout.LabelField("Intentional Silence", $"{diagnostics.IntentionalSilenceMilliseconds:F1} ms");
-            EditorGUILayout.LabelField("Late Frames", diagnostics.LateFrames.ToString());
-            EditorGUILayout.LabelField("Reordered Frames", diagnostics.ReorderedFrames.ToString());
-            EditorGUILayout.LabelField("Duplicate Frames", diagnostics.DuplicateFrames.ToString());
-            EditorGUILayout.LabelField("Finalized Gaps", diagnostics.FinalizedGaps.ToString());
-            EditorGUILayout.LabelField("Queue Pressure Events", diagnostics.QueuePressureEvents.ToString());
-            EditorGUILayout.LabelField("Rejected Sequence Advances", diagnostics.RejectedSequenceAdvances.ToString());
-            EditorGUILayout.LabelField("FEC Decode Attempts", diagnostics.ForwardErrorCorrectionAttempts.ToString());
-            EditorGUILayout.LabelField("Pending Encoded Frames", diagnostics.PendingEncodedFrames.ToString());
-            EditorGUILayout.LabelField("Peak Pending Frames", diagnostics.MaximumPendingEncodedFrames.ToString());
-            EditorGUILayout.LabelField("Concealed Frames", diagnostics.ConcealedFrames.ToString());
-            EditorGUILayout.LabelField("Decoder Resets", diagnostics.DecoderResets.ToString());
-            EditorGUILayout.LabelField("Prebuffer Wait Callbacks", diagnostics.PrebufferWaits.ToString());
-            EditorGUILayout.LabelField("Rebuffer Events", diagnostics.RebufferEvents.ToString());
-            EditorGUILayout.LabelField("Concurrent Read Aborts", diagnostics.ConcurrentReadAborts.ToString());
+            EditorGUILayout.LabelField("Ingress Drops", diagnostics.QueueDrops.ToString());
+            EditorGUILayout.LabelField("Prebuffer Waits", diagnostics.PrebufferWaits.ToString());
+            EditorGUILayout.LabelField("Underruns", diagnostics.RebufferEvents.ToString());
             EditorGUILayout.LabelField("Partial Reads", diagnostics.PartialReads.ToString());
-            EditorGUILayout.LabelField("Overflowed Audio", $"{diagnostics.OverflowedMilliseconds:F1} ms");
-            EditorGUILayout.LabelField("Renderer Underruns", diagnostics.RendererUnderruns.ToString());
-            EditorGUILayout.LabelField("Renderer Rebases", diagnostics.RendererRebases.ToString());
-            if (GUILayout.Button("Reset Playback Measurements")) {
-                speaker.ResetDiagnostics();
-            }
+            EditorGUILayout.LabelField("Overflow", $"{diagnostics.OverflowedMilliseconds:F1} ms");
         }
-
-        public override bool RequiresConstantRepaint() => Application.isPlaying;
 
     }
 

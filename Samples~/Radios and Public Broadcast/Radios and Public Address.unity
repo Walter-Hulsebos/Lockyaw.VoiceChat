@@ -159,7 +159,7 @@ Light:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 30759334}
   m_Enabled: 1
-  serializedVersion: 12
+  serializedVersion: 13
   m_Type: 1
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_Intensity: 1.25
@@ -211,7 +211,7 @@ Light:
   m_UseBoundingSphereOverride: 0
   m_UseViewFrustumForShadowCasterCull: 1
   m_ForceVisible: 0
-  m_ShadowRadius: 0
+  m_ShapeRadius: 0
   m_ShadowAngle: 0
   m_LightUnit: 1
   m_LuxAtDistance: 1
@@ -531,6 +531,7 @@ GameObject:
   - component: {fileID: 763798273}
   - component: {fileID: 763798272}
   - component: {fileID: 763798271}
+  - component: {fileID: 763798275}
   m_Layer: 0
   m_Name: Session
   m_TagString: Untagged
@@ -620,6 +621,7 @@ MonoBehaviour:
     NetworkTopology: 0
     UseCMBService: 0
     AutoSpawnPlayerPrefabClientSide: 1
+    NetworkMessageMetrics: 1
     NetworkProfilingMetrics: 1
     OldPrefabList: []
   RunInBackground: 1
@@ -639,6 +641,32 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &763798275
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 763798270}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 11711600a87e49a8b59692f0567b9866, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Lockyaw.VoiceChat::Lockyaw.VoiceChat.VoiceSession
+  networkManager: {fileID: 763798273}
+  deliveryMode: 0
+  listenAddress: 0.0.0.0
+  advertisedAddress: 
+  voicePort: 7778
+  steamVirtualPort: 37
+  maxPeers: 128
+  sendingEnabled: 1
+  receivingEnabled: 1
+  overrideInputDevice: 0
+  inputDevice:
+    value: 
+  maximumReorderDelayMilliseconds: 10
+  maxConcealedFrames: 3
 --- !u!1 &807322103
 GameObject:
   m_ObjectHideFlags: 0
@@ -687,6 +715,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d4d04d8659929a54c919038bc7f5cf2f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Lockyaw.VoiceChat.BroadcastingSample::Lockyaw.VoiceChat.BroadcastingSample.WorldSound
+  audioSource: {fileID: 807322106}
   frequency: 440
   volume: 0.15
 --- !u!82 &807322106

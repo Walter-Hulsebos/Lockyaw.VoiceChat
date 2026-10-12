@@ -1,3 +1,7 @@
+#if UNITY_6000_5_OR_NEWER
+using NoAutoStaticsCleanup = Unity.Scripting.LifecycleManagement.NoAutoStaticsCleanupAttribute;
+#endif
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -10,6 +14,9 @@ using Object = UnityEngine.Object;
 
 namespace Lockyaw.VoiceChat.Editor {
 
+    #if UNITY_6000_5_OR_NEWER
+    [NoAutoStaticsCleanup]
+    #endif
     internal static class VoiceProjectScanner {
 
         private static readonly ObjectPool<Dictionary<string, bool>> buildSceneStatePool = new(
@@ -69,7 +76,11 @@ namespace Lockyaw.VoiceChat.Editor {
         }
 
         private static void AddLoadedNetworkManagers(List<VoiceNetworkManagerCandidate> candidates) {
+            #if UNITY_6000_7_OR_NEWER
+            NetworkManager[] managers = Object.FindObjectsByType<NetworkManager>(FindObjectsInactive.Include);
+            #else
             NetworkManager[] managers = Object.FindObjectsByType<NetworkManager>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            #endif
 
             for (int i = 0; i < managers.Length; i++) {
                 NetworkManager manager = managers[i];

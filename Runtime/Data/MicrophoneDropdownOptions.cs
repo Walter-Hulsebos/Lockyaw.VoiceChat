@@ -9,62 +9,66 @@ namespace Lockyaw.VoiceChat {
         public int SelectedIndex { get; private set; }
         public bool HasDevices => availableDevices.Count > 0;
 
+        private readonly List<VoiceDeviceDescriptor> availableDevices = new();
         private readonly List<string> labels = new();
-        private readonly List<string> availableDevices = new();
-        private readonly List<string> optionDeviceNames = new();
-        private string requestedDeviceName;
+        private readonly List<VoiceDeviceId> optionDevices = new();
+        private VoiceDeviceId requestedDevice;
         private int unavailableDeviceIndex = -1;
         private bool hasRefreshed;
 
-        public bool Refresh(IReadOnlyList<string> deviceNames, string requestedDeviceName) {
-            string normalizedDeviceName = string.IsNullOrWhiteSpace(requestedDeviceName) ? "" : requestedDeviceName;
-            IReadOnlyList<string> refreshedDevices = deviceNames == null ? Array.Empty<string>() : deviceNames;
-            if (hasRefreshed && this.requestedDeviceName == normalizedDeviceName && HasSameDevices(refreshedDevices)) { return false; }
-
+        public bool Refresh(IReadOnlyList<VoiceDeviceDescriptor> deviceDescriptors, VoiceDeviceId requestedDevice) {
+            IReadOnlyList<VoiceDeviceDescriptor> refreshedDevices = deviceDescriptors == null ? Array.Empty<VoiceDeviceDescriptor>() : deviceDescriptors;
+            if (hasRefreshed && this.requestedDevice == requestedDevice && HasSameDevices(refreshedDevices)) { return false; }
             hasRefreshed = true;
-            this.requestedDeviceName = normalizedDeviceName;
+            this.requestedDevice = requestedDevice;
             availableDevices.Clear();
-            availableDevices.AddRange(refreshedDevices);
+            for (int i = 0; i < refreshedDevices.Count; i++) { availableDevices.Add(refreshedDevices[i]); }
             labels.Clear();
-            optionDeviceNames.Clear();
-            SelectedIndex = 0;
+            optionDevices.Clear();
             unavailableDeviceIndex = -1;
-            if (!HasDevices) {
-                labels.Add("No microphone available");
-                return true;
+            SelectedIndex = requestedDevice.IsNone ? 1 : 0;
+            labels.Add(HasDevices ? "System default" : "System default (no microphone available)");
+            optionDevices.Add(VoiceDeviceId.Default);
+            labels.Add("None");
+            optionDevices.Add(VoiceDeviceId.None);
+            for (int i = 0; i < availableDevices.Count; i++) {
+                VoiceDeviceDescriptor device = availableDevices[i];
+                string label = device.DisplayName;
+                int duplicateCount = 0;
+                int duplicateIndex = 0;
+                for (int otherIndex = 0; otherIndex < availableDevices.Count; otherIndex++) {
+                    if (availableDevices[otherIndex].DisplayName != device.DisplayName) { continue; }
+                    duplicateCount++;
+                    if (otherIndex <= i) { duplicateIndex++; }
+                }
+                if (duplicateCount > 1) { label = $"{label} ({duplicateIndex})"; }
+                if (device.IsDefault) { label = $"{label} (default)"; }
+                if (device.Id == requestedDevice) { SelectedIndex = labels.Count; }
+                labels.Add(label);
+                optionDevices.Add(device.Id);
             }
-
-            labels.Add("Automatic");
-            optionDeviceNames.Add("");
-            if (normalizedDeviceName.Length > 0 && !availableDevices.Contains(normalizedDeviceName)) {
+            if (!requestedDevice.IsDefault && !requestedDevice.IsNone && SelectedIndex == 0) {
                 unavailableDeviceIndex = labels.Count;
                 SelectedIndex = unavailableDeviceIndex;
-                labels.Add($"{normalizedDeviceName} (unavailable)");
-                optionDeviceNames.Add(normalizedDeviceName);
-            }
-
-            for (int i = 0; i < availableDevices.Count; i++) {
-                string deviceName = availableDevices[i];
-                if (deviceName == normalizedDeviceName) {
-                    SelectedIndex = labels.Count;
-                }
-                labels.Add(deviceName);
-                optionDeviceNames.Add(deviceName);
+                labels.Add("Selected microphone (unavailable)");
+                optionDevices.Add(requestedDevice);
             }
             return true;
         }
 
-        public bool TryGetDeviceName(int optionIndex, out string deviceName) {
-            deviceName = "";
-            if (!HasDevices || optionIndex < 0 || optionIndex >= optionDeviceNames.Count || optionIndex == unavailableDeviceIndex) { return false; }
-            deviceName = optionDeviceNames[optionIndex];
+        public bool TryGetDeviceId(int optionIndex, out VoiceDeviceId deviceId) {
+            deviceId = VoiceDeviceId.Default;
+            if (optionIndex < 0 || optionIndex >= optionDevices.Count || optionIndex == unavailableDeviceIndex) { return false; }
+            deviceId = optionDevices[optionIndex];
             return true;
         }
 
-        private bool HasSameDevices(IReadOnlyList<string> deviceNames) {
-            if (availableDevices.Count != deviceNames.Count) { return false; }
+        private bool HasSameDevices(IReadOnlyList<VoiceDeviceDescriptor> descriptors) {
+            if (availableDevices.Count != descriptors.Count) { return false; }
             for (int i = 0; i < availableDevices.Count; i++) {
-                if (availableDevices[i] != deviceNames[i]) { return false; }
+                VoiceDeviceDescriptor previousDevice = availableDevices[i];
+                VoiceDeviceDescriptor currentDevice = descriptors[i];
+                if (previousDevice.Id != currentDevice.Id || previousDevice.DisplayName != currentDevice.DisplayName || previousDevice.IsDefault != currentDevice.IsDefault) { return false; }
             }
             return true;
         }

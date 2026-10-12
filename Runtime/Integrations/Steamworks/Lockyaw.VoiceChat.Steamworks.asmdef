@@ -2,6 +2,7 @@
   "name": "Lockyaw.VoiceChat.Steamworks",
   "rootNamespace": "Lockyaw.VoiceChat",
   "references": [
+    "Lockyaw.VoiceChat.Core",
     "Lockyaw.VoiceChat",
     "com.rlabrecque.steamworks.net"
   ],

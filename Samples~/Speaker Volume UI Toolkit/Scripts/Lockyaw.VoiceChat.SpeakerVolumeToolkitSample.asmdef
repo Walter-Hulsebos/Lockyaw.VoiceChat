@@ -2,6 +2,7 @@
   "name": "Lockyaw.VoiceChat.SpeakerVolumeToolkitSample",
   "rootNamespace": "Lockyaw.VoiceChat.SpeakerVolumeToolkitSample",
   "references": [
+    "Lockyaw.VoiceChat.Core",
     "Lockyaw.VoiceChat",
     "Unity.Netcode.Runtime"
   ],

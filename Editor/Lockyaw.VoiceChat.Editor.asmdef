@@ -2,6 +2,7 @@
   "name": "Lockyaw.VoiceChat.Editor",
   "rootNamespace": "Lockyaw.VoiceChat.Editor",
   "references": [
+    "Lockyaw.VoiceChat.Core",
     "Lockyaw.VoiceChat",
     "Unity.Netcode.Runtime"
   ],

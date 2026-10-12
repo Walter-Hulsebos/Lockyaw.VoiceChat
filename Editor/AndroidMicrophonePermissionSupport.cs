@@ -1,3 +1,7 @@
+#if UNITY_6000_5_OR_NEWER
+using NoAutoStaticsCleanup = Unity.Scripting.LifecycleManagement.NoAutoStaticsCleanupAttribute;
+#endif
+
 using System;
 using System.IO;
 using System.Xml.Linq;
@@ -6,6 +10,9 @@ using UnityEngine;
 
 namespace Lockyaw.VoiceChat.Editor {
 
+    #if UNITY_6000_5_OR_NEWER
+    [NoAutoStaticsCleanup]
+    #endif
     internal static class AndroidMicrophonePermissionSupport {
 
         internal readonly struct PermissionStatus {

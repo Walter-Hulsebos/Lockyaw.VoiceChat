@@ -1,3 +1,4 @@
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -11,6 +12,7 @@ namespace Lockyaw.VoiceChat.SpeakerVolumeToolkitSample {
         [Header("References")]
         [SerializeField, HideInInspector] private UIDocument document;
         [SerializeField] private VisualTreeAsset speakerTemplate;
+        [SerializeField] private NetworkManager networkManager;
 
         [Header("Speakers")]
         [SerializeField] private bool includeLocalSpeaker;
@@ -79,7 +81,7 @@ namespace Lockyaw.VoiceChat.SpeakerVolumeToolkitSample {
                 return;
             }
 
-            speakerList = new SpeakerVolumeListElement(speakerTemplate);
+            speakerList = new SpeakerVolumeListElement(networkManager, speakerTemplate);
             listHost.Add(speakerList);
             RefreshSpeakers();
         }
@@ -99,6 +101,7 @@ namespace Lockyaw.VoiceChat.SpeakerVolumeToolkitSample {
         }
 
         private void CacheComponentReferences() {
+            if (networkManager == null) { networkManager = FindFirstObjectByType<NetworkManager>(); }
             if (document == null) {
                 TryGetComponent(out document);
             }

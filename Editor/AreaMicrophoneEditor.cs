@@ -42,7 +42,11 @@ namespace Lockyaw.VoiceChat.Editor {
         }
 
         private static bool HasRouter(AreaMicrophone microphone) {
+            #if UNITY_6000_7_OR_NEWER
+            BroadcastRouter[] routers = Object.FindObjectsByType<BroadcastRouter>(FindObjectsInactive.Include);
+            #else
             BroadcastRouter[] routers = Object.FindObjectsByType<BroadcastRouter>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            #endif
             for (int i = 0; i < routers.Length; i++) {
                 if (routers[i] != null && routers[i].gameObject.scene == microphone.gameObject.scene) { return true; }
             }

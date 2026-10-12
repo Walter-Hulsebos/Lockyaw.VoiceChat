@@ -2,6 +2,7 @@
   "name": "Lockyaw.VoiceChat.UIToolkit",
   "rootNamespace": "Lockyaw.VoiceChat.UIToolkit",
   "references": [
+    "Lockyaw.VoiceChat.Core",
     "Lockyaw.VoiceChat",
     "Unity.Netcode.Runtime"
   ],

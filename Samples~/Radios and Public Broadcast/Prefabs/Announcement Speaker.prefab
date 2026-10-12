@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 3090366441986280273}
   - component: {fileID: 1366601616835443745}
   - component: {fileID: 2548181762781808950}
+  - component: {fileID: 2000917302968564245}
   m_Layer: 0
   m_Name: Speaker Grille
   m_TagString: Untagged
@@ -212,6 +213,18 @@ AudioSource:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+--- !u!114 &2000917302968564245
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 17097791024533981}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be3b7231d3c7413bbab9da692660d193, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Lockyaw.VoiceChat::Lockyaw.VoiceChat.VoiceAudioRenderer
 --- !u!1 &1213354318500692886
 GameObject:
   m_ObjectHideFlags: 0
@@ -301,6 +314,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Lockyaw.VoiceChat::Lockyaw.VoiceChat.ChannelSpeaker
   ShowTopMostFoldoutHeaderGroup: 1
+  tuner: {fileID: 8339315688042524890}
   audioSource: {fileID: 2548181762781808950}
   outputMixerGroup: {fileID: 0}
   spatialization: 1
@@ -309,10 +323,8 @@ MonoBehaviour:
   suppressOriginClient: 1
   maxConcurrentStreams: 8
   receiveTimeout: 0.5
-  targetBufferMilliseconds: 60
-  maxBufferMilliseconds: 350
-  maximumReorderDelayMilliseconds: 40
-  maxConcealedFrames: 3
+  targetBufferMilliseconds: 25
+  maxBufferMilliseconds: 80
 --- !u!1 &4286173531181981835
 GameObject:
   m_ObjectHideFlags: 0

@@ -4,90 +4,37 @@ namespace Lockyaw.VoiceChat {
 
         public int AudioCallbackSamples { get; }
         public int OutputSampleRate { get; }
-        public int DspBufferSamples { get; }
-        public int DspBufferCount { get; }
         public float BufferedMilliseconds { get; }
         public long ReceivedFrames { get; }
-        public long MissingFrames { get; }
-        public float IntentionalSilenceMilliseconds { get; }
-        public long LateFrames { get; }
-        public long ReorderedFrames { get; }
-        public long DuplicateFrames { get; }
-        public long FinalizedGaps { get; }
-        public long QueuePressureEvents { get; }
-        public long RejectedSequenceAdvances { get; }
-        public long ForwardErrorCorrectionAttempts { get; }
-        public int PendingEncodedFrames { get; }
-        public int MaximumPendingEncodedFrames { get; }
-        public long ConcealedFrames { get; }
-        public long DecoderResets { get; }
+        public long QueueDrops { get; }
         public int PrebufferWaits { get; }
         public int RebufferEvents { get; }
-        public int ConcurrentReadAborts { get; }
         public int PartialReads { get; }
         public float OverflowedMilliseconds { get; }
-        public int RenderQuantumSamples { get; }
-        public float ScheduledLeadMilliseconds { get; }
-        public long RendererUnderruns { get; }
-        public long RendererRebases { get; }
+        public long AudioCallbacks { get; }
+        public long RenderedSignalSamples { get; }
+        public float TargetMilliseconds { get; }
+        public float JitterMilliseconds { get; }
+        // Capture-to-render time of locally captured audio heard through loopback; zero when not measured.
+        public float LoopbackLatencyMilliseconds { get; }
+        public float OutputBufferMilliseconds { get; }
 
-        public VoicePlaybackDiagnostics(
-            int audioCallbackSamples,
-            int outputSampleRate,
-            int dspBufferSamples,
-            int dspBufferCount,
-            float bufferedMilliseconds,
-            long receivedFrames,
-            long missingFrames,
-            float intentionalSilenceMilliseconds,
-            long lateFrames,
-            long reorderedFrames,
-            long duplicateFrames,
-            long finalizedGaps,
-            long queuePressureEvents,
-            long rejectedSequenceAdvances,
-            long forwardErrorCorrectionAttempts,
-            int pendingEncodedFrames,
-            int maximumPendingEncodedFrames,
-            long concealedFrames,
-            long decoderResets,
-            int prebufferWaits,
-            int rebufferEvents,
-            int concurrentReadAborts,
-            int partialReads,
-            float overflowedMilliseconds,
-            int renderQuantumSamples = 0,
-            float scheduledLeadMilliseconds = 0f,
-            long rendererUnderruns = 0L,
-            long rendererRebases = 0L) {
+        public VoicePlaybackDiagnostics(int audioCallbackSamples, int outputSampleRate, float bufferedMilliseconds, long receivedFrames, long queueDrops, int prebufferWaits, int rebufferEvents, int partialReads, float overflowedMilliseconds, long audioCallbacks, long renderedSignalSamples, float targetMilliseconds = 0f, float jitterMilliseconds = 0f, float loopbackLatencyMilliseconds = 0f, float outputBufferMilliseconds = 0f) {
             AudioCallbackSamples = audioCallbackSamples;
             OutputSampleRate = outputSampleRate;
-            DspBufferSamples = dspBufferSamples;
-            DspBufferCount = dspBufferCount;
             BufferedMilliseconds = bufferedMilliseconds;
             ReceivedFrames = receivedFrames;
-            MissingFrames = missingFrames;
-            IntentionalSilenceMilliseconds = intentionalSilenceMilliseconds;
-            LateFrames = lateFrames;
-            ReorderedFrames = reorderedFrames;
-            DuplicateFrames = duplicateFrames;
-            FinalizedGaps = finalizedGaps;
-            QueuePressureEvents = queuePressureEvents;
-            RejectedSequenceAdvances = rejectedSequenceAdvances;
-            ForwardErrorCorrectionAttempts = forwardErrorCorrectionAttempts;
-            PendingEncodedFrames = pendingEncodedFrames;
-            MaximumPendingEncodedFrames = maximumPendingEncodedFrames;
-            ConcealedFrames = concealedFrames;
-            DecoderResets = decoderResets;
+            QueueDrops = queueDrops;
             PrebufferWaits = prebufferWaits;
             RebufferEvents = rebufferEvents;
-            ConcurrentReadAborts = concurrentReadAborts;
             PartialReads = partialReads;
             OverflowedMilliseconds = overflowedMilliseconds;
-            RenderQuantumSamples = renderQuantumSamples;
-            ScheduledLeadMilliseconds = scheduledLeadMilliseconds;
-            RendererUnderruns = rendererUnderruns;
-            RendererRebases = rendererRebases;
+            AudioCallbacks = audioCallbacks;
+            RenderedSignalSamples = renderedSignalSamples;
+            TargetMilliseconds = targetMilliseconds;
+            JitterMilliseconds = jitterMilliseconds;
+            LoopbackLatencyMilliseconds = loopbackLatencyMilliseconds;
+            OutputBufferMilliseconds = outputBufferMilliseconds;
         }
 
     }

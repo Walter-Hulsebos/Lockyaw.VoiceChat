@@ -1,15 +1,11 @@
 using System;
-using System.Collections.Generic;
 using UnityEditor;
-using Unity.Netcode;
 using UnityEngine;
-using UnityEngine.Pool;
 
 namespace Lockyaw.VoiceChat.Editor {
 
     internal static class VoicePrefabConfigurator {
 
-        private const string VOICE_PLAYBACK_OBJECT_NAME = "Voice Playback";
         private const string UNDO_CONFIGURATION_NAME = "Configure Voice Chat Player";
         private const string UNDO_STEAM_AUDIO_NAME = "Add Steam Audio Source";
 
@@ -28,34 +24,16 @@ namespace Lockyaw.VoiceChat.Editor {
                 }
 
                 Undo.RegisterFullObjectHierarchyUndo(prefabRoot, UNDO_CONFIGURATION_NAME);
-                VoiceParticipant participant = GetOrAddParticipant(prefabRoot);
+                VoiceParticipant participant = VoiceComponentSetup.EnsureParticipant(prefabRoot);
                 if (!participant.TryGetComponent(out SpeakerIdentity speakerIdentity)) {
                     speakerIdentity = Undo.AddComponent<SpeakerIdentity>(participant.gameObject);
                 }
                 if (!participant.TryGetComponent(out ConversationGroup conversationGroup)) {
                     conversationGroup = Undo.AddComponent<ConversationGroup>(participant.gameObject);
                 }
-                participant.TryGetComponent(out NetworkObject networkObject);
-                ConfigureStableOwnership(networkObject);
-                if (!participant.TryGetComponent(out SpeakerOutput speakerOutput)) {
-                    speakerOutput = Undo.AddComponent<SpeakerOutput>(participant.gameObject);
-                }
-
-                AudioSource audioSource = GetOrCreateAudioSource(prefabRoot, speakerOutput);
-                PositionManagedAudioSource(prefabRoot, audioSource);
-
-                Undo.RecordObject(speakerOutput, UNDO_CONFIGURATION_NAME);
-                speakerOutput.SetAudioSource(audioSource);
-                speakerOutput.SetSpatialization(GetPreferredSpatialization());
-
-                EditorUtility.SetDirty(audioSource);
-                if (networkObject != null) {
-                    EditorUtility.SetDirty(networkObject);
-                }
-                EditorUtility.SetDirty(speakerOutput);
-                EditorUtility.SetDirty(speakerIdentity);
-                EditorUtility.SetDirty(conversationGroup);
-                EditorUtility.SetDirty(participant);
+                VoiceComponentSetup.EnsureParticipant(prefabRoot);
+                VoiceComponentSetup.CompleteConfiguration(speakerIdentity);
+                VoiceComponentSetup.CompleteConfiguration(conversationGroup);
 
                 PrefabUtility.SaveAsPrefabAsset(prefabRoot, prefabPath, out bool savedSuccessfully);
                 if (!savedSuccessfully) {
@@ -134,99 +112,11 @@ namespace Lockyaw.VoiceChat.Editor {
             }
         }
 
-        private static VoiceParticipant GetOrAddParticipant(GameObject prefabRoot) {
-            return prefabRoot.TryGetComponent(out VoiceParticipant participant)
-                ? participant
-                : Undo.AddComponent<VoiceParticipant>(prefabRoot);
-        }
-
-        private static void ConfigureStableOwnership(NetworkObject networkObject) {
-            if (networkObject == null) { return; }
-
-            SerializedObject serializedNetworkObject = new(networkObject);
-            SerializedProperty ownershipProperty = serializedNetworkObject.FindProperty("Ownership");
-            if (ownershipProperty == null) { return; }
-
-            Undo.RecordObject(networkObject, UNDO_CONFIGURATION_NAME);
-            ownershipProperty.intValue = (int)NetworkObject.OwnershipStatus.None;
-            serializedNetworkObject.ApplyModifiedProperties();
-        }
-
-        private static AudioSource GetOrCreateAudioSource(GameObject prefabRoot, SpeakerOutput speakerOutput) {
-            if (speakerOutput.AudioSource != null) { return speakerOutput.AudioSource; }
-
-            Transform playbackTransform = FindPlaybackTransform(prefabRoot.transform);
-            if (playbackTransform == null) {
-                Transform playbackParent = FindHumanoidHead(prefabRoot);
-                GameObject playbackObject = new(VOICE_PLAYBACK_OBJECT_NAME);
-                Undo.RegisterCreatedObjectUndo(playbackObject, UNDO_CONFIGURATION_NAME);
-                playbackTransform = playbackObject.transform;
-                playbackTransform.SetParent(playbackParent, false);
-            }
-
-            return playbackTransform.TryGetComponent(out AudioSource audioSource)
-                ? audioSource
-                : Undo.AddComponent<AudioSource>(playbackTransform.gameObject);
-        }
-
-        private static void PositionManagedAudioSource(GameObject prefabRoot, AudioSource audioSource) {
-            if (audioSource.gameObject == prefabRoot) { return; }
-            if (audioSource.name != VOICE_PLAYBACK_OBJECT_NAME) { return; }
-
-            Transform playbackTransform = audioSource.transform;
-            Transform playbackParent = FindHumanoidHead(prefabRoot);
-            Undo.RecordObject(audioSource.gameObject, UNDO_CONFIGURATION_NAME);
-            Undo.RecordObject(playbackTransform, UNDO_CONFIGURATION_NAME);
-            audioSource.gameObject.name = VOICE_PLAYBACK_OBJECT_NAME;
-            playbackTransform.SetParent(playbackParent, false);
-            playbackTransform.localPosition = Vector3.zero;
-            playbackTransform.localRotation = Quaternion.identity;
-            playbackTransform.localScale = Vector3.one;
-        }
-
         private static int BeginUndoGroup(string undoName) {
             Undo.IncrementCurrentGroup();
             int undoGroup = Undo.GetCurrentGroup();
             Undo.SetCurrentGroupName(undoName);
             return undoGroup;
-        }
-
-        private static Transform FindPlaybackTransform(Transform prefabRoot) {
-            List<Transform> transforms = ListPool<Transform>.Get();
-            try {
-                prefabRoot.GetComponentsInChildren(true, transforms);
-                for (int i = 0; i < transforms.Count; i++) {
-                    if (transforms[i].name == VOICE_PLAYBACK_OBJECT_NAME) { return transforms[i]; }
-                }
-                return null;
-            }
-            finally {
-                ListPool<Transform>.Release(transforms);
-            }
-        }
-
-        private static Transform FindHumanoidHead(GameObject prefabRoot) {
-            List<Animator> animators = ListPool<Animator>.Get();
-            try {
-                prefabRoot.GetComponentsInChildren(true, animators);
-                for (int i = 0; i < animators.Count; i++) {
-                    Animator animator = animators[i];
-                    if (animator.avatar == null || !animator.avatar.isHuman) { continue; }
-
-                    Transform head = animator.GetBoneTransform(HumanBodyBones.Head);
-                    if (head != null) { return head; }
-                }
-                return prefabRoot.transform;
-            }
-            finally {
-                ListPool<Animator>.Release(animators);
-            }
-        }
-
-        private static SpatializationMode GetPreferredSpatialization() {
-            return string.IsNullOrEmpty(AudioSettings.GetSpatializerPluginName())
-                ? SpatializationMode.UnityThreeDimensional
-                : SpatializationMode.ProjectSpatializer;
         }
 
         private static bool TryGetEditablePrefabPath(GameObject playerPrefab, out string prefabPath, out string failureMessage) {

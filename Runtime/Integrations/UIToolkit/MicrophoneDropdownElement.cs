@@ -10,6 +10,7 @@ namespace Lockyaw.VoiceChat.UIToolkit {
         private MicrophoneInput microphoneInput;
         private IVisualElementScheduledItem refreshSchedule;
         private bool isRefreshing;
+        private bool hasExplicitBinding;
 
         public MicrophoneDropdownElement() {
             label = "Microphone";
@@ -21,14 +22,16 @@ namespace Lockyaw.VoiceChat.UIToolkit {
 
         public void Bind(MicrophoneInput microphoneInput) {
             this.microphoneInput = microphoneInput;
+            hasExplicitBinding = microphoneInput != null;
             RefreshDevices();
         }
 
         public void RefreshDevices() {
             ResolveMicrophone();
-            string requestedDeviceName = microphoneInput == null ? "" : microphoneInput.RequestedDeviceName;
-            bool haveOptionsChanged = options.Refresh(MicrophoneDevices.GetAvailableDevices(), requestedDeviceName);
-            SetEnabled(options.HasDevices && microphoneInput != null && (!microphoneInput.IsSpawned || microphoneInput.IsOwner));
+            MicrophoneDevices.Refresh();
+            VoiceDeviceId requestedDevice = microphoneInput == null ? VoiceDeviceId.Default : microphoneInput.DeviceId;
+            bool haveOptionsChanged = options.Refresh(MicrophoneDevices.GetAvailableDevices(), requestedDevice);
+            SetEnabled(microphoneInput != null && (!microphoneInput.IsSpawned || microphoneInput.IsOwner));
             if (!haveOptionsChanged) { return; }
 
             isRefreshing = true;
@@ -53,15 +56,24 @@ namespace Lockyaw.VoiceChat.UIToolkit {
         }
 
         private void HandleDeviceChanged(ChangeEvent<string> e) {
-            if (isRefreshing || microphoneInput == null || !enabledInHierarchy || !options.TryGetDeviceName(index, out string deviceName)) { return; }
-            microphoneInput.SetDevice(deviceName);
+            if (isRefreshing || microphoneInput == null || !enabledInHierarchy || !options.TryGetDeviceId(index, out VoiceDeviceId deviceId)) { return; }
+            microphoneInput.SetInputDevice(deviceId);
             RefreshDevices();
         }
 
         private void ResolveMicrophone() {
-            if (microphoneInput == null && VoiceParticipant.TryGetLocal(out VoiceParticipant participant)) {
-                participant.TryGetComponent(out microphoneInput);
+            if (hasExplicitBinding) { return; }
+            if (microphoneInput != null && microphoneInput.IsSpawned && microphoneInput.IsClient && microphoneInput.IsOwner && microphoneInput.isActiveAndEnabled) { return; }
+            microphoneInput = null;
+            MicrophoneInput candidate = null;
+            IReadOnlyList<VoiceParticipant> participants = VoiceParticipant.SpawnedParticipants;
+            for (int i = 0; i < participants.Count; i++) {
+                VoiceParticipant participant = participants[i];
+                if (participant == null || !participant.IsSpawned || !participant.IsClient || !participant.IsOwner || !participant.TryGetComponent(out MicrophoneInput localMicrophone)) { continue; }
+                if (candidate != null) { return; }
+                candidate = localMicrophone;
             }
+            microphoneInput = candidate;
         }
 
     }

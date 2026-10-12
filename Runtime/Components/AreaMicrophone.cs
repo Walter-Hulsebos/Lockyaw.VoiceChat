@@ -1,3 +1,7 @@
+#if UNITY_6000_5_OR_NEWER
+using NoAutoStaticsCleanup = Unity.Scripting.LifecycleManagement.NoAutoStaticsCleanupAttribute;
+#endif
+
 using System;
 using System.Collections.Generic;
 using Unity.Netcode;
@@ -11,6 +15,9 @@ namespace Lockyaw.VoiceChat {
     [AddComponentMenu("Lockyaw/Voice Chat/Broadcasting/Area Microphone")]
     [DisallowMultipleComponent]
     [RequireComponent(typeof(NetworkObject), typeof(ChannelTuner))]
+    #if UNITY_6000_5_OR_NEWER
+    [NoAutoStaticsCleanup]
+    #endif
     public sealed class AreaMicrophone : NetworkBehaviour {
 
         [SerializeField, HideInInspector] private ChannelTuner tuner;
@@ -29,7 +36,7 @@ namespace Lockyaw.VoiceChat {
         [SerializeField] private VoiceCodecSettings codecSettings = default;
 
         [Header("Relay Validation")]
-        [SerializeField, Range(20, 120)] private int maxFramesPerSecond = 110;
+        [SerializeField, Range(20, 120), Tooltip("Audio the host relays per second, counted in 10 ms frames. 100 is real time at any frame length.")] private int maxFramesPerSecond = 110;
 
         private readonly struct SourceCandidate {
 
@@ -52,109 +59,62 @@ namespace Lockyaw.VoiceChat {
         public bool IsOpen => broadcastButton == null || broadcastButton.IsBroadcasting;
         public bool CapturesWorldAudio => captureWorldAudio;
         public ulong CaptureClientId => captureClientId.Value;
+        internal int MaximumFramesPerSecond => maxFramesPerSecond;
+        internal static IReadOnlyList<AreaMicrophone> ActiveMicrophones => activeMicrophones;
 
         private static readonly List<AreaMicrophone> activeMicrophones = new(8);
         private static AudioSource[] sharedAudioSources = Array.Empty<AudioSource>();
         private static float nextSharedAudioSourceRefreshAt;
         private static int sharedAudioSourceSnapshotVersion;
 
-        private const double AUTHORITY_STREAM_TIMEOUT = 2d;
-        private const int MAXIMUM_WORLD_FRAMES_PER_UPDATE = 2;
-        private const uint MAXIMUM_SEQUENCE_ADVANCE = 1024;
-
         private readonly List<WorldAudioSourceReader> sourceReaders = new(32);
         private readonly List<SourceCandidate> selectedSourceCandidates = new(32);
-        private readonly ObjectPool<WorldAudioSourceReader> sourceReaderPool = new(
-            CreateSourceReader,
-            null,
-            DisposeSourceReader,
-            DisposeSourceReader,
-            false,
-            16,
-            128);
-        private readonly NetworkVariable<ulong> captureClientId = new(
-            BroadcastRoute.UNASSIGNED_CLIENT_ID,
-            NetworkVariableReadPermission.Everyone,
-            NetworkVariableWritePermission.Server);
-        private float[] mixedSamples = Array.Empty<float>();
-        private float[] sourceSamples = Array.Empty<float>();
-        private VoiceEncoderSession encoder;
-        private FrameReplayWindow authorityReplayWindow;
-        private uint sequence;
-        private double authorityWindowStartedAt;
-        private double authorityLastFrameAt;
-        private ulong authorityCaptureClientId = BroadcastRoute.UNASSIGNED_CLIENT_ID;
-        private int authorityFramesInWindow;
-        private float nextCaptureAt;
+        private readonly ObjectPool<WorldAudioSourceReader> sourceReaderPool = new(CreateSourceReader, null, DisposeSourceReader, DisposeSourceReader, false, 16, 128);
+        private readonly NetworkVariable<ulong> captureClientId = new(BroadcastRoute.UNASSIGNED_CLIENT_ID, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+        private VoiceSession session;
+        private VoiceWorldCaptureProcessor processor;
+        private VoiceProcessingWorker processorOwner;
         private float nextCaptureClientRefreshAt;
-        private float nextRouterWarningAt;
         private int observedAudioSourceSnapshotVersion = -1;
         private bool sourceReadersNeedSynchronization = true;
 
         private void Awake() {
             CacheReferences();
-            if (!VoiceFrame.IsSupportedSampleCount(codecSettings.SamplesPerFrame)) {
-                codecSettings = VoiceCodecSettings.Default;
-            }
+            if (!VoiceFrame.IsSupportedSampleCount(codecSettings.SamplesPerFrame)) { codecSettings = VoiceCodecSettings.Default; }
         }
 
         public override void OnDestroy() {
             UnregisterMicrophone();
             DisposeWorldCapture();
             sourceReaderPool.Clear();
+            DetachSession();
             base.OnDestroy();
         }
 
         private void OnEnable() {
-            VoiceChatSettings.OnSendingEnabled.Listen(HandleSendingEnabledChanged);
-            if (IsSpawned) {
-                RegisterMicrophone();
-            }
+            if (IsSpawned) { RegisterMicrophone(); }
         }
 
         private void OnDisable() {
-            VoiceChatSettings.OnSendingEnabled.Unlisten(HandleSendingEnabledChanged);
             UnregisterMicrophone();
             DisposeWorldCapture();
         }
 
         private void Update() {
-            if (HasAuthority && Time.unscaledTime >= nextCaptureClientRefreshAt) {
-                RefreshCaptureClient();
-            }
-
-            if (!CanPrepareWorldAudio()) {
-                SuspendWorldCapture();
-                DisposeEncodingResources();
+            if (HasAuthority && Time.unscaledTime >= nextCaptureClientRefreshAt) { RefreshCaptureClient(); }
+            if (!CanPrepareWorldAudio() || !IsOpen) {
+                DisposeWorldCapture();
                 return;
             }
-
-            EnsureWorldCapture();
+            EnsureProcessor();
             RefreshSharedAudioSources();
             RefreshSourceSelection();
-            if (!IsOpen) {
-                SuspendWorldCapture();
-                return;
-            }
-            if (sourceReadersNeedSynchronization) {
-                SynchronizeSourceReaders();
-            }
-
-            float frameDuration = codecSettings.SamplesPerFrame / (float)VoiceEncoderSession.SAMPLE_RATE;
-            int processedFrames = 0;
-            while (Time.unscaledTime >= nextCaptureAt && processedFrames < MAXIMUM_WORLD_FRAMES_PER_UPDATE) {
-                CaptureWorldFrame();
-                nextCaptureAt += frameDuration;
-                processedFrames++;
-            }
-            if (Time.unscaledTime - nextCaptureAt > frameDuration * MAXIMUM_WORLD_FRAMES_PER_UPDATE) {
-                nextCaptureAt = Time.unscaledTime + frameDuration;
-            }
+            if (sourceReadersNeedSynchronization) { SynchronizeSourceReaders(); }
+            RefreshCaptureControl();
         }
 
         private void Reset() {
-            TryGetComponent(out tuner);
-            TryGetComponent(out broadcastButton);
+            CacheReferences();
             radius = 4f;
             capturedLayers = ~0;
             pickupGain = 1f;
@@ -178,7 +138,8 @@ namespace Lockyaw.VoiceChat {
         }
 
         public override void OnNetworkSpawn() {
-            ResetAuthorityStream();
+            session = VoiceSession.GetOrCreate(NetworkManager);
+            session.OnSendingEnabled.Listen(HandleSendingEnabledChanged);
             RegisterMicrophone();
             RefreshCaptureClient();
         }
@@ -186,7 +147,7 @@ namespace Lockyaw.VoiceChat {
         public override void OnNetworkDespawn() {
             UnregisterMicrophone();
             DisposeWorldCapture();
-            ResetAuthorityStream();
+            DetachSession();
         }
 
         public void SetRadius(float newRadius) {
@@ -194,62 +155,34 @@ namespace Lockyaw.VoiceChat {
             observedAudioSourceSnapshotVersion = -1;
         }
 
-        public bool ContainsPosition(Vector3 position) {
-            return (position - transform.position).sqrMagnitude <= radius * radius;
-        }
-
-        internal static void CollectVoiceCaptures(
-            NetworkManager networkManager,
-            Vector3 sourcePosition,
-            ulong originClientId,
-            List<AreaMicrophone> results) {
-            results.Clear();
-            if (networkManager == null || networkManager.SpawnManager == null) { return; }
-
-            for (int i = 0; i < activeMicrophones.Count; i++) {
-                AreaMicrophone microphone = activeMicrophones[i];
-                if (!IsRegisteredWithNetworkManager(microphone, networkManager) ||
-                    !microphone.IsSpawned ||
-                    !microphone.isActiveAndEnabled ||
-                    !microphone.ContainsPosition(sourcePosition) ||
-                    !microphone.CanCaptureVoiceFrom(originClientId)) {
-                    continue;
-                }
-
-                int matchingIndex = FindChannelIndex(results, microphone.Channel);
-                if (matchingIndex < 0) {
-                    results.Add(microphone);
-                }
-                else if (microphone.NetworkObjectId < results[matchingIndex].NetworkObjectId) {
-                    results[matchingIndex] = microphone;
-                }
+        internal void RefreshCaptureControl() {
+            if (processor == null) { return; }
+            List<VoiceWorldSource> sources = new(sourceReaders.Count);
+            for (int i = 0; i < sourceReaders.Count; i++) {
+                WorldAudioSourceReader reader = sourceReaders[i];
+                if (!CanCaptureSource(reader.AudioSource, out float attenuation)) { continue; }
+                sources.Add(new(reader.History, reader.InitialSamplePosition, attenuation * pickupGain));
             }
+            processor.Configure(new(CanPrepareWorldAudio() && IsOpen, CaptureClientId, sources.ToArray()));
         }
 
-        internal void SubmitVoiceFrame(ulong originNetworkObjectId, ulong originClientId, VoiceFrame frame) {
-            if (!IsSpawned || !frame.IsValid) { return; }
-
-            BroadcastRoute route = new(Channel, NetworkObjectId, originNetworkObjectId, 0, originClientId);
-            BroadcastFrame broadcastFrame = new(route, frame);
-            if (!broadcastFrame.IsValid) { return; }
-
-            if (HasAuthority) {
-                ulong senderClientId = NetworkManager.DistributedAuthorityMode
-                    ? originClientId
-                    : NetworkManager.ServerClientId;
-                if (CanRelayVoiceFrame(broadcastFrame, senderClientId)) {
-                    RelayFrame(broadcastFrame);
-                }
-                return;
-            }
-            SubmitVoiceFrameRpc(broadcastFrame);
-        }
+        public bool ContainsPosition(Vector3 position) => (position - transform.position).sqrMagnitude <= radius * radius;
 
         internal bool CanCaptureVoiceFrom(ulong originClientId) {
             if (!IsOpen || Channel < 0) { return false; }
-            return !restrictVoiceToButtonOperator ||
-                   broadcastButton == null ||
-                   broadcastButton.OperatorClientId == originClientId;
+            return !restrictVoiceToButtonOperator || broadcastButton == null || broadcastButton.OperatorClientId == originClientId;
+        }
+
+        internal static void CollectVoiceCaptures(NetworkManager networkManager, Vector3 sourcePosition, ulong originClientId, List<AreaMicrophone> results) {
+            results.Clear();
+            if (networkManager == null || networkManager.SpawnManager == null) { return; }
+            for (int i = 0; i < activeMicrophones.Count; i++) {
+                AreaMicrophone microphone = activeMicrophones[i];
+                if (!IsRegisteredWithNetworkManager(microphone, networkManager) || !microphone.IsSpawned || !microphone.isActiveAndEnabled || !microphone.ContainsPosition(sourcePosition) || !microphone.CanCaptureVoiceFrom(originClientId)) { continue; }
+                int matchingIndex = FindChannelIndex(results, microphone.Channel);
+                if (matchingIndex < 0) { results.Add(microphone); }
+                else if (microphone.NetworkObjectId < results[matchingIndex].NetworkObjectId) { results[matchingIndex] = microphone; }
+            }
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -260,125 +193,43 @@ namespace Lockyaw.VoiceChat {
             sharedAudioSourceSnapshotVersion = 0;
         }
 
-        [Rpc(SendTo.Authority, Delivery = RpcDelivery.Unreliable, InvokePermission = RpcInvokePermission.Everyone)]
-        private void SubmitWorldFrameRpc(VoiceFrame frame, RpcParams rpcParams = default) {
-            SubmitWorldFrameAtAuthority(frame, rpcParams.Receive.SenderClientId);
-        }
-
-        private void SubmitWorldFrameAtAuthority(VoiceFrame frame, ulong senderClientId) {
-            if (!HasAuthority ||
-                !frame.IsValid ||
-                !IsOpen ||
-                !VoiceParticipant.IsClientSendingEnabled(NetworkManager, senderClientId) ||
-                senderClientId != CaptureClientId ||
-                frame.SourceClientId != senderClientId ||
-                !AcceptFrameAtAuthority(frame, senderClientId)) {
-                return;
-            }
-
-            BroadcastRoute route = new(Channel, NetworkObjectId, NetworkObjectId);
-            BroadcastFrame broadcastFrame = new(route, frame);
-            if (!broadcastFrame.IsValid) { return; }
-            RelayFrame(broadcastFrame);
-        }
-
-        [Rpc(SendTo.Authority, Delivery = RpcDelivery.Unreliable, InvokePermission = RpcInvokePermission.Everyone)]
-        private void SubmitVoiceFrameRpc(BroadcastFrame frame, RpcParams rpcParams = default) {
-            if (!HasAuthority || !CanRelayVoiceFrame(frame, rpcParams.Receive.SenderClientId)) { return; }
-            RelayFrame(frame);
-        }
-
         private void HandleSendingEnabledChanged(bool isEnabled) {
-            if (isEnabled) { return; }
-            DisposeWorldCapture();
+            if (!isEnabled) { DisposeWorldCapture(); }
         }
 
-        private void CaptureWorldFrame() {
-            if (!VoiceChatSettings.IsSendingEnabled || encoder == null || mixedSamples.Length == 0) { return; }
-
-            Array.Clear(mixedSamples, 0, mixedSamples.Length);
-            int capturedSourceCount = 0;
-            Span<float> sourceFrameSamples = sourceSamples.AsSpan(0, mixedSamples.Length);
-            for (int i = 0; i < sourceReaders.Count && capturedSourceCount < maxCapturedSources; i++) {
-                WorldAudioSourceReader sourceReader = sourceReaders[i];
-                AudioSource candidate = sourceReader.AudioSource;
-                if (!CanCaptureSource(candidate, out float attenuation)) { continue; }
-                if (!sourceReader.Read(sourceFrameSamples, MAXIMUM_WORLD_FRAMES_PER_UPDATE)) { continue; }
-
-                float sourceGain = attenuation * pickupGain;
-                for (int sampleIndex = 0; sampleIndex < mixedSamples.Length; sampleIndex++) {
-                    mixedSamples[sampleIndex] += sourceFrameSamples[sampleIndex] * sourceGain;
-                }
-                capturedSourceCount++;
+        private void EnsureProcessor() {
+            if (processor != null && (session == null || processorOwner != session.ProcessingWorker)) { DisposeWorldCapture(); }
+            if (processor != null || session == null || !session.isActiveAndEnabled || session.NetworkSession == null || session.ProcessingWorker == null) { return; }
+            processorOwner = session.ProcessingWorker;
+            processor = new(session.NetworkSession, VoiceRouteId.World(NetworkObjectId), codecSettings.ToConfiguration());
+            if (!processorOwner.Register(processor)) {
+                processor.Dispose();
+                processor = null;
             }
-
-            if (capturedSourceCount == 0) { return; }
-            for (int i = 0; i < mixedSamples.Length; i++) {
-                mixedSamples[i] = Math.Clamp(mixedSamples[i], -1f, 1f);
-            }
-
-            float decibels = AudioMath.GetDecibels(mixedSamples);
-            VoiceFrame frame;
-            try {
-                if (!encoder.TryEncode(mixedSamples, sequence, AudioMath.GetNetworkLevel(decibels), out frame)) { return; }
-            }
-            catch (Exception exception) {
-                Debug.LogWarning($"Area Microphone restarted world-audio capture: {exception.Message}", this);
-                SuspendWorldCapture();
-                DisposeEncodingResources();
-                return;
-            }
-
-            frame.SourceClientId = NetworkManager.LocalClientId;
-            sequence = unchecked(sequence + 1);
-            if (HasAuthority) {
-                SubmitWorldFrameAtAuthority(frame, NetworkManager.LocalClientId);
-            }
-            else {
-                SubmitWorldFrameRpc(frame);
-            }
-        }
-
-        private void EnsureWorldCapture() {
-            if (encoder != null && mixedSamples.Length == codecSettings.SamplesPerFrame) { return; }
-
-            DisposeEncodingResources();
-            encoder = new(codecSettings);
-            mixedSamples = new float[codecSettings.SamplesPerFrame];
-            sourceSamples = new float[GetOutputSampleCount(codecSettings.SamplesPerFrame)];
-            nextCaptureAt = Time.unscaledTime;
-        }
-
-        private void SuspendWorldCapture() {
-            ReleaseSourceReaders();
-            nextCaptureAt = Time.unscaledTime;
         }
 
         private void DisposeWorldCapture() {
-            ReleaseSourceReaders();
+            VoiceWorldCaptureProcessor current = processor;
+            processor = null;
+            if (current != null) {
+                current.Stop();
+                if (processorOwner != null) { processorOwner.Unregister(current); }
+                processorOwner = null;
+            }
+            for (int i = 0; i < sourceReaders.Count; i++) { sourceReaderPool.Release(sourceReaders[i]); }
+            sourceReaders.Clear();
             selectedSourceCandidates.Clear();
             observedAudioSourceSnapshotVersion = -1;
             sourceReadersNeedSynchronization = true;
-            DisposeEncodingResources();
         }
 
-        private void ReleaseSourceReaders() {
-            if (sourceReaders.Count == 0) { return; }
-
-            for (int i = 0; i < sourceReaders.Count; i++) {
-                sourceReaderPool.Release(sourceReaders[i]);
-            }
-            sourceReaders.Clear();
-            sourceReadersNeedSynchronization = true;
+        private void DetachSession() {
+            if (session != null) { session.OnSendingEnabled.Unlisten(HandleSendingEnabledChanged); }
+            session = null;
         }
 
-        private void DisposeEncodingResources() {
-            if (encoder != null) {
-                encoder.Dispose();
-                encoder = null;
-            }
-            mixedSamples = Array.Empty<float>();
-            sourceSamples = Array.Empty<float>();
+        private bool CanPrepareWorldAudio() {
+            return session != null && session.isActiveAndEnabled && session.IsSendingEnabled && captureWorldAudio && isActiveAndEnabled && IsSpawned && IsClient && Channel >= 0 && NetworkManager != null && NetworkManager.LocalClientId == CaptureClientId;
         }
 
         private void RefreshSourceSelection() {
@@ -438,54 +289,6 @@ namespace Lockyaw.VoiceChat {
             sharedAudioSourceSnapshotVersion = unchecked(sharedAudioSourceSnapshotVersion + 1);
         }
 
-        private void ResetAuthorityStream() {
-            authorityReplayWindow.Clear();
-            authorityWindowStartedAt = 0d;
-            authorityLastFrameAt = 0d;
-            authorityCaptureClientId = BroadcastRoute.UNASSIGNED_CLIENT_ID;
-            authorityFramesInWindow = 0;
-        }
-
-        private bool AcceptFrameAtAuthority(VoiceFrame frame, ulong captureClientId) {
-            if (authorityCaptureClientId != captureClientId) {
-                ResetAuthorityStream();
-                authorityCaptureClientId = captureClientId;
-            }
-
-            double currentTime = Time.unscaledTimeAsDouble;
-            bool allowForwardRebase = currentTime - authorityLastFrameAt >= AUTHORITY_STREAM_TIMEOUT;
-            if (currentTime - authorityWindowStartedAt >= 1d) {
-                authorityWindowStartedAt = currentTime;
-                authorityFramesInWindow = 0;
-            }
-
-            authorityFramesInWindow++;
-            if (authorityFramesInWindow > maxFramesPerSecond) { return false; }
-            if (!authorityReplayWindow.TryAccept(
-                frame.SourceClientId,
-                frame.StreamId,
-                frame.Sequence,
-                MAXIMUM_SEQUENCE_ADVANCE,
-                allowForwardRebase)) {
-                return false;
-            }
-
-            authorityLastFrameAt = currentTime;
-            return true;
-        }
-
-        private void RelayFrame(BroadcastFrame frame) {
-            if (!frame.IsValid) { return; }
-            if (BroadcastRouter.TryGet(NetworkManager, out BroadcastRouter router)) {
-                router.SubmitFrame(frame);
-                return;
-            }
-            if (Time.unscaledTime >= nextRouterWarningAt) {
-                nextRouterWarningAt = Time.unscaledTime + 5f;
-                Debug.LogError("Area Microphone needs one spawned Broadcast Router in the session.", this);
-            }
-        }
-
         private void RefreshCaptureClient() {
             nextCaptureClientRefreshAt = Time.unscaledTime + 1f;
             if (!IsSpawned || !HasAuthority || NetworkManager == null || !captureClientId.CanClientWrite(NetworkManager.LocalClientId)) { return; }
@@ -504,46 +307,6 @@ namespace Lockyaw.VoiceChat {
             if (captureClientId.Value != selectedClientId) {
                 captureClientId.Value = selectedClientId;
             }
-        }
-
-        private bool CanRelayVoiceFrame(BroadcastFrame frame, ulong senderClientId) {
-            if (!frame.IsValid ||
-                !frame.Route.IsDirect ||
-                frame.Route.SourceNetworkObjectId != NetworkObjectId ||
-                !frame.Route.MatchesChannel(Channel) ||
-                frame.Frame.SourceClientId != frame.Route.OriginClientId ||
-                NetworkManager == null ||
-                NetworkManager.SpawnManager == null) {
-                return false;
-            }
-
-            if (NetworkManager.DistributedAuthorityMode) {
-                if (senderClientId != frame.Route.OriginClientId) { return false; }
-            }
-            else if (senderClientId != NetworkManager.ServerClientId) {
-                return false;
-            }
-
-            if (!NetworkManager.SpawnManager.SpawnedObjects.TryGetValue(frame.Route.OriginNetworkObjectId, out NetworkObject originObject)) {
-                return false;
-            }
-
-            if (!originObject.TryGetComponent(out VoiceParticipant participant)) { return false; }
-            return participant.IsSendingEnabled &&
-                   participant.OwnerClientId == frame.Route.OriginClientId &&
-                   ContainsPosition(participant.transform.position) &&
-                   CanCaptureVoiceFrom(frame.Route.OriginClientId);
-        }
-
-        private bool CanPrepareWorldAudio() {
-            return VoiceChatSettings.IsSendingEnabled &&
-                   captureWorldAudio &&
-                   isActiveAndEnabled &&
-                   IsSpawned &&
-                   IsClient &&
-                   Channel >= 0 &&
-                   NetworkManager != null &&
-                   NetworkManager.LocalClientId == CaptureClientId;
         }
 
         private bool CanCaptureSource(AudioSource candidate, out float attenuation) {
@@ -610,7 +373,11 @@ namespace Lockyaw.VoiceChat {
             float currentTime = Time.unscaledTime;
             if (currentTime < nextSharedAudioSourceRefreshAt) { return; }
 
+            #if UNITY_6000_7_OR_NEWER
+            sharedAudioSources = Object.FindObjectsByType<AudioSource>(FindObjectsInactive.Exclude);
+            #else
             sharedAudioSources = Object.FindObjectsByType<AudioSource>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            #endif
             sharedAudioSourceSnapshotVersion = unchecked(sharedAudioSourceSnapshotVersion + 1);
             nextSharedAudioSourceRefreshAt = currentTime + GetFastestSourceRefreshInterval();
         }
@@ -629,14 +396,6 @@ namespace Lockyaw.VoiceChat {
                 fastestRefreshInterval = Mathf.Min(fastestRefreshInterval, refreshInterval);
             }
             return float.IsPositiveInfinity(fastestRefreshInterval) ? 1f : fastestRefreshInterval;
-        }
-
-        private static int GetOutputSampleCount(int minimumSampleCount) {
-            int sampleCount = 1;
-            while (sampleCount < minimumSampleCount) {
-                sampleCount <<= 1;
-            }
-            return sampleCount;
         }
 
         private static int CompareSourceCandidates(SourceCandidate left, SourceCandidate right) {

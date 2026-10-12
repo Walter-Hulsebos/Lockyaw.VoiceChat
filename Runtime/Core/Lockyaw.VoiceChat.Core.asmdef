@@ -1,0 +1,16 @@
+{
+  "name": "Lockyaw.VoiceChat.Core",
+  "rootNamespace": "Lockyaw.VoiceChat",
+  "references": [],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": true,
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "Concentus.dll"
+  ],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

@@ -1,0 +1,7 @@
+{
+  "name": "miniaudio",
+  "version": "0.11.23",
+  "source": "https://raw.githubusercontent.com/mackron/miniaudio/0.11.23/miniaudio.h",
+  "sha256": "7e4f3f13c8fe66df2080ac3dd12a89193e3c2463cb7f067c798abd7331cd8ee6",
+  "license": "MIT-0"
+}

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Unity.Netcode;
 using UnityEngine.Pool;
 using UnityEngine.UIElements;
 
@@ -11,10 +12,12 @@ namespace Lockyaw.VoiceChat.SpeakerVolumeToolkitSample {
 
         private readonly Dictionary<ulong, SpeakerVolumeEntryElement> speakerEntries = new();
         private readonly List<VoiceParticipant> visibleSpeakers = new();
+        private readonly NetworkManager networkManager;
         private readonly VisualTreeAsset speakerTemplate;
         private readonly ObjectPool<SpeakerVolumeEntryElement> speakerEntryPool;
 
-        public SpeakerVolumeListElement(VisualTreeAsset speakerTemplate) {
+        public SpeakerVolumeListElement(NetworkManager networkManager, VisualTreeAsset speakerTemplate) {
+            this.networkManager = networkManager;
             this.speakerTemplate = speakerTemplate;
             speakerEntryPool = new(
                 CreateEntry,
@@ -74,12 +77,11 @@ namespace Lockyaw.VoiceChat.SpeakerVolumeToolkitSample {
 
         private void CollectVisibleSpeakers(bool includeLocalSpeaker) {
             visibleSpeakers.Clear();
-            VoiceParticipant.TryGetLocal(out VoiceParticipant localParticipant);
             IReadOnlyList<VoiceParticipant> participants = VoiceParticipant.SpawnedParticipants;
             for (int i = 0; i < participants.Count; i++) {
                 VoiceParticipant participant = participants[i];
                 if (participant == null || !participant.IsSpawned || (!includeLocalSpeaker && participant.IsOwner)) { continue; }
-                if (localParticipant != null && participant.NetworkManager != localParticipant.NetworkManager) { continue; }
+                if (networkManager == null || participant.NetworkManager != networkManager) { continue; }
                 if (!participant.TryGetComponent(out SpeakerOutput _)) { continue; }
                 visibleSpeakers.Add(participant);
             }

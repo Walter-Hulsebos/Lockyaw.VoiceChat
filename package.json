@@ -1,7 +1,7 @@
 {
   "name": "lockyaw.voicechat",
   "displayName": "Lockyaw Voice Chat",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "unity": "6000.0",
   "description": "Native Netcode for GameObjects voice communication for client-server and distributed-authority topologies, with authority-routed conversation groups, area microphones, channel-based radios and public-address speakers, Opus encoding, spatial and global playback, and guided setup.",
   "keywords": [

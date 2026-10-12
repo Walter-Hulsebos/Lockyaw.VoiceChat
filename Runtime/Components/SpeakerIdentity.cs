@@ -1,3 +1,7 @@
+#if UNITY_6000_5_OR_NEWER
+using NoAutoStaticsCleanup = Unity.Scripting.LifecycleManagement.NoAutoStaticsCleanupAttribute;
+#endif
+
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using Unity.Netcode;
@@ -8,6 +12,9 @@ namespace Lockyaw.VoiceChat {
     [AddComponentMenu("Lockyaw/Voice Chat/Identity")]
     [DisallowMultipleComponent]
     [RequireComponent(typeof(NetworkObject), typeof(VoiceParticipant))]
+    #if UNITY_6000_5_OR_NEWER
+    [NoAutoStaticsCleanup]
+    #endif
     public sealed class SpeakerIdentity : NetworkBehaviour {
 
         [SerializeField, HideInInspector] private VoiceParticipant participant;

@@ -234,19 +234,22 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Lockyaw.VoiceChat::Lockyaw.VoiceChat.MicrophoneInput
   ShowTopMostFoldoutHeaderGroup: 1
-  requestedDeviceName: 
+  participant: {fileID: 3870187389065865132}
+  deviceId:
+    value: 
   reconnectInterval: 2
   transmissionMode: 0
   activationThreshold: -42
   activationRelease: 0.2
   codecSettings:
-    frameLength: 960
+    application: 0
+    frameLength: 480
     bitRate: 32000
-    complexity: 8
-    expectedPacketLossPercent: 10
+    complexity: 3
+    expectedPacketLossPercent: 0
     useVariableBitRate: 1
-    useForwardErrorCorrection: 1
-    useDiscontinuousTransmission: 1
+    useForwardErrorCorrection: 0
+    useDiscontinuousTransmission: 0
   stateUpdateInterval: 0.1
 --- !u!114 &930895802947709129
 MonoBehaviour:
@@ -261,16 +264,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Lockyaw.VoiceChat::Lockyaw.VoiceChat.SpeakerOutput
   ShowTopMostFoldoutHeaderGroup: 1
+  participant: {fileID: 3870187389065865132}
   audioSource: {fileID: 2398962697567290880}
   outputMixerGroup: {fileID: 0}
   spatialization: 0
   minDistance: 1.5
   maxDistance: 25
   localVolume: 1
-  targetBufferMilliseconds: 60
-  maxBufferMilliseconds: 350
-  maximumReorderDelayMilliseconds: 40
-  maxConcealedFrames: 3
+  targetBufferMilliseconds: 25
+  maxBufferMilliseconds: 80
   maxPitchCorrection: 0.03
   pitchCorrectionGain: 0.5
 --- !u!114 &3870187389065865132
@@ -286,6 +288,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Lockyaw.VoiceChat::Lockyaw.VoiceChat.VoiceParticipant
   ShowTopMostFoldoutHeaderGroup: 1
+  microphoneInput: {fileID: 1534361243221409601}
+  speakerOutput: {fileID: 930895802947709129}
+  conversationGroup: {fileID: 2485622818735271404}
   startInputMuted: 0
   startDeafened: 0
   localLoopback: 0
@@ -303,6 +308,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Lockyaw.VoiceChat::Lockyaw.VoiceChat.SpeakerIdentity
   ShowTopMostFoldoutHeaderGroup: 1
+  participant: {fileID: 3870187389065865132}
   nameResolver: {fileID: 0}
   fallbackDisplayName: Player
 --- !u!114 &2485622818735271404
@@ -318,6 +324,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Lockyaw.VoiceChat::Lockyaw.VoiceChat.ConversationGroup
   ShowTopMostFoldoutHeaderGroup: 1
+  participant: {fileID: 3870187389065865132}
+  speakerOutput: {fileID: 930895802947709129}
   startingGroup: 0
 --- !u!114 &4027349780712890736
 MonoBehaviour:
@@ -332,6 +340,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Lockyaw.VoiceChat.FirstPersonSample::Lockyaw.VoiceChat.FirstPersonSample.FirstPersonVoicePlayer
   ShowTopMostFoldoutHeaderGroup: 1
+  characterController: {fileID: 6973863466861495099}
+  microphoneInput: {fileID: 1534361243221409601}
   inputActions: {fileID: -944628639613478452, guid: 96dfa71ffb2f46b48b46be3e90754e17, type: 3}
   playerCamera: {fileID: 8587123195457892375}
   audioListener: {fileID: 431666304267809612}
@@ -452,6 +462,7 @@ GameObject:
   m_Component:
   - component: {fileID: 5281144063991453693}
   - component: {fileID: 2398962697567290880}
+  - component: {fileID: 4919224769848301346}
   m_Layer: 0
   m_Name: Voice Playback
   m_TagString: Untagged
@@ -571,6 +582,18 @@ AudioSource:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+--- !u!114 &4919224769848301346
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6654940753555292815}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be3b7231d3c7413bbab9da692660d193, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Lockyaw.VoiceChat::Lockyaw.VoiceChat.VoiceAudioRenderer
 --- !u!1001 &7141877272388311147
 PrefabInstance:
   m_ObjectHideFlags: 0

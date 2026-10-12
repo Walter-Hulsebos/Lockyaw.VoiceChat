@@ -2,6 +2,7 @@
   "name": "Lockyaw.VoiceChat.UGUI",
   "rootNamespace": "Lockyaw.VoiceChat.UGUI",
   "references": [
+    "Lockyaw.VoiceChat.Core",
     "Lockyaw.VoiceChat",
     "Unity.Netcode.Runtime",
     "Unity.TextMeshPro",

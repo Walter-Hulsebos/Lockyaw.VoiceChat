@@ -25,7 +25,7 @@ namespace Lockyaw.VoiceChat.Editor {
             if (managerCandidate.Manager.IsListening) {
                 return VoiceSetupResult.Failure("Stop the running network session before changing its player prefab.");
             }
-            if (managerCandidate.Manager.NetworkConfig.PlayerPrefab == playerPrefab) {
+            if (managerCandidate.Manager.NetworkConfig.PlayerPrefab == playerPrefab && VoiceSession.TryGet(managerCandidate.Manager, out VoiceSession existingSession) && existingSession.NetworkManager == managerCandidate.Manager) {
                 return VoiceSetupResult.Success($"{playerPrefab.name} is already assigned as the network player prefab.");
             }
 
@@ -37,7 +37,9 @@ namespace Lockyaw.VoiceChat.Editor {
         private static VoiceSetupResult AssignLoadedManager(NetworkManager manager, GameObject playerPrefab) {
             Undo.RecordObject(manager, UNDO_ASSIGNMENT_NAME);
             manager.NetworkConfig.PlayerPrefab = playerPrefab;
+            EnsureVoiceSession(manager);
             EditorUtility.SetDirty(manager);
+            if (PrefabUtility.IsPartOfPrefabInstance(manager)) { PrefabUtility.RecordPrefabInstancePropertyModifications(manager); }
             EditorSceneManager.MarkSceneDirty(manager.gameObject.scene);
 
             string sceneName = string.IsNullOrEmpty(manager.gameObject.scene.name) ? "the open scene" : manager.gameObject.scene.name;
@@ -65,6 +67,7 @@ namespace Lockyaw.VoiceChat.Editor {
 
                 Undo.RegisterFullObjectHierarchyUndo(prefabRoot, UNDO_ASSIGNMENT_NAME);
                 manager.NetworkConfig.PlayerPrefab = playerPrefab;
+                EnsureVoiceSession(manager);
                 EditorUtility.SetDirty(manager);
 
                 PrefabUtility.SaveAsPrefabAsset(prefabRoot, prefabPath, out bool savedSuccessfully);
@@ -81,6 +84,12 @@ namespace Lockyaw.VoiceChat.Editor {
                     PrefabUtility.UnloadPrefabContents(prefabRoot);
                 }
             }
+        }
+
+        private static void EnsureVoiceSession(NetworkManager manager) {
+            if (VoiceSession.TryGet(manager, out VoiceSession existingSession)) { VoiceComponentSetup.RecordConfiguration(existingSession); }
+            VoiceSession session = VoiceSession.GetOrCreate(manager);
+            VoiceComponentSetup.CompleteConfiguration(session);
         }
 
         private static NetworkManager FindManager(GameObject prefabRoot, string managerPath, int managerIndex) {

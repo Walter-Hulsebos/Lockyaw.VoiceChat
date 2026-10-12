@@ -88,9 +88,7 @@ namespace Lockyaw.VoiceChat.SpeakerVolumeSample {
             if (rowsParent == null) {
                 rowsParent = transform as RectTransform;
             }
-            if (networkManager == null && VoiceParticipant.TryGetLocal(out VoiceParticipant localParticipant)) {
-                networkManager = localParticipant.NetworkManager;
-            }
+            if (networkManager == null) { networkManager = FindFirstObjectByType<NetworkManager>(); }
         }
 
         private void FindParticipants() {

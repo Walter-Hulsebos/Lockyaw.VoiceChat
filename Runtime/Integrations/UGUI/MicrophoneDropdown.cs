@@ -18,8 +18,10 @@ namespace Lockyaw.VoiceChat.UGUI {
 
         private readonly MicrophoneDropdownOptions options = new();
         private float nextRefreshAt;
+        private bool hasExplicitBinding;
 
         private void Awake() {
+            hasExplicitBinding = microphoneInput != null;
             CacheDropdown();
         }
 
@@ -51,6 +53,7 @@ namespace Lockyaw.VoiceChat.UGUI {
 
         public void Bind(MicrophoneInput microphoneInput) {
             this.microphoneInput = microphoneInput;
+            hasExplicitBinding = microphoneInput != null;
             RefreshDevices();
         }
 
@@ -59,9 +62,10 @@ namespace Lockyaw.VoiceChat.UGUI {
             if (dropdown == null) { return; }
             ResolveMicrophone();
 
-            string requestedDeviceName = microphoneInput == null ? "" : microphoneInput.RequestedDeviceName;
-            bool haveOptionsChanged = options.Refresh(MicrophoneDevices.GetAvailableDevices(), requestedDeviceName);
-            dropdown.interactable = options.HasDevices && microphoneInput != null && (!microphoneInput.IsSpawned || microphoneInput.IsOwner);
+            MicrophoneDevices.Refresh();
+            VoiceDeviceId requestedDevice = microphoneInput == null ? VoiceDeviceId.Default : microphoneInput.DeviceId;
+            bool haveOptionsChanged = options.Refresh(MicrophoneDevices.GetAvailableDevices(), requestedDevice);
+            dropdown.interactable = microphoneInput != null && (!microphoneInput.IsSpawned || microphoneInput.IsOwner);
             if (!haveOptionsChanged) { return; }
 
             dropdown.Hide();
@@ -72,8 +76,8 @@ namespace Lockyaw.VoiceChat.UGUI {
         }
 
         private void HandleDeviceChanged(int optionIndex) {
-            if (microphoneInput == null || !dropdown.interactable || !options.TryGetDeviceName(optionIndex, out string deviceName)) { return; }
-            microphoneInput.SetDevice(deviceName);
+            if (microphoneInput == null || !dropdown.interactable || !options.TryGetDeviceId(optionIndex, out VoiceDeviceId deviceId)) { return; }
+            microphoneInput.SetInputDevice(deviceId);
             RefreshDevices();
         }
 
@@ -84,9 +88,18 @@ namespace Lockyaw.VoiceChat.UGUI {
         }
 
         private void ResolveMicrophone() {
-            if (microphoneInput == null && VoiceParticipant.TryGetLocal(out VoiceParticipant participant)) {
-                participant.TryGetComponent(out microphoneInput);
+            if (hasExplicitBinding) { return; }
+            if (microphoneInput != null && microphoneInput.IsSpawned && microphoneInput.IsClient && microphoneInput.IsOwner && microphoneInput.isActiveAndEnabled) { return; }
+            microphoneInput = null;
+            MicrophoneInput candidate = null;
+            IReadOnlyList<VoiceParticipant> participants = VoiceParticipant.SpawnedParticipants;
+            for (int i = 0; i < participants.Count; i++) {
+                VoiceParticipant participant = participants[i];
+                if (participant == null || !participant.IsSpawned || !participant.IsClient || !participant.IsOwner || !participant.TryGetComponent(out MicrophoneInput localMicrophone)) { continue; }
+                if (candidate != null) { return; }
+                candidate = localMicrophone;
             }
+            microphoneInput = candidate;
         }
 
     }

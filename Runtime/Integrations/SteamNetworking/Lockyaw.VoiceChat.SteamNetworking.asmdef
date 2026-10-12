@@ -1,0 +1,40 @@
+{
+  "name": "Lockyaw.VoiceChat.SteamNetworking",
+  "rootNamespace": "Lockyaw.VoiceChat",
+  "references": [
+    "Lockyaw.VoiceChat",
+    "Lockyaw.VoiceChat.Core",
+    "Unity.Netcode.Runtime",
+    "com.rlabrecque.steamworks.net",
+    "SteamNetworkingSockets Transport for Netcode for GameObjects"
+  ],
+  "includePlatforms": [
+    "Editor",
+    "LinuxStandalone64",
+    "macOSStandalone",
+    "WindowsStandalone64"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [
+    "LOCKYAW_VOICECHAT_STEAMWORKS_NET",
+    "LOCKYAW_VOICECHAT_STEAM_TRANSPORT",
+    "!DISABLESTEAMWORKS"
+  ],
+  "versionDefines": [
+    {
+      "name": "com.rlabrecque.steamworks.net",
+      "expression": "",
+      "define": "LOCKYAW_VOICECHAT_STEAMWORKS_NET"
+    },
+    {
+      "name": "com.community.netcode.transport.steamnetworkingsockets",
+      "expression": "",
+      "define": "LOCKYAW_VOICECHAT_STEAM_TRANSPORT"
+    }
+  ],
+  "noEngineReferences": false
+}

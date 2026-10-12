@@ -216,13 +216,14 @@ MonoBehaviour:
   sourceRefreshInterval: 1
   maxCapturedSources: 32
   codecSettings:
-    frameLength: 960
+    application: 0
+    frameLength: 480
     bitRate: 32000
-    complexity: 8
-    expectedPacketLossPercent: 10
+    complexity: 3
+    expectedPacketLossPercent: 0
     useVariableBitRate: 1
-    useForwardErrorCorrection: 1
-    useDiscontinuousTransmission: 1
+    useForwardErrorCorrection: 0
+    useDiscontinuousTransmission: 0
   maxFramesPerSecond: 110
 --- !u!114 &3815275484032344890
 MonoBehaviour:
@@ -237,6 +238,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Lockyaw.VoiceChat::Lockyaw.VoiceChat.ChannelSpeaker
   ShowTopMostFoldoutHeaderGroup: 1
+  tuner: {fileID: 492795517291248702}
   audioSource: {fileID: 5046763908422689058}
   outputMixerGroup: {fileID: 0}
   spatialization: 1
@@ -245,10 +247,8 @@ MonoBehaviour:
   suppressOriginClient: 1
   maxConcurrentStreams: 8
   receiveTimeout: 0.5
-  targetBufferMilliseconds: 60
-  maxBufferMilliseconds: 350
-  maximumReorderDelayMilliseconds: 40
-  maxConcealedFrames: 3
+  targetBufferMilliseconds: 25
+  maxBufferMilliseconds: 80
 --- !u!1 &7107317262884950626
 GameObject:
   m_ObjectHideFlags: 0
@@ -262,6 +262,7 @@ GameObject:
   - component: {fileID: 634076414072467992}
   - component: {fileID: 3931840999552273655}
   - component: {fileID: 5046763908422689058}
+  - component: {fileID: 1666760760377596237}
   m_Layer: 0
   m_Name: Radio Body
   m_TagString: Untagged
@@ -459,3 +460,15 @@ AudioSource:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+--- !u!114 &1666760760377596237
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7107317262884950626}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be3b7231d3c7413bbab9da692660d193, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Lockyaw.VoiceChat::Lockyaw.VoiceChat.VoiceAudioRenderer

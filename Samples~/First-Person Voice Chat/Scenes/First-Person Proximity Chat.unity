@@ -291,7 +291,7 @@ Light:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 872176189}
   m_Enabled: 1
-  serializedVersion: 12
+  serializedVersion: 13
   m_Type: 1
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_Intensity: 1.1
@@ -343,7 +343,7 @@ Light:
   m_UseBoundingSphereOverride: 0
   m_UseViewFrustumForShadowCasterCull: 1
   m_ForceVisible: 0
-  m_ShadowRadius: 0
+  m_ShapeRadius: 0
   m_ShadowAngle: 0
   m_LightUnit: 1
   m_LuxAtDistance: 1
@@ -552,6 +552,7 @@ GameObject:
   - component: {fileID: 1356762475}
   - component: {fileID: 1356762476}
   - component: {fileID: 1356762477}
+  - component: {fileID: 1356762478}
   m_Layer: 0
   m_Name: Voice Network
   m_TagString: Untagged
@@ -572,6 +573,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Lockyaw.VoiceChat.FirstPersonSample::Lockyaw.VoiceChat.FirstPersonSample.FirstPersonVoiceSampleNetwork
   networkManager: {fileID: 1356762473}
+  transport: {fileID: 1356762472}
   spawnPoints:
   - {fileID: 1952877057}
   - {fileID: 1350011094}
@@ -581,65 +583,6 @@ MonoBehaviour:
   serverAddress: 127.0.0.1
   port: 7777
   listenAddress: 0.0.0.0
---- !u!114 &1356762475
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1356762470}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 35a2bd0c61af2e748baf691259d854b2, type: 3}
-  m_Name:
-  m_EditorClassIdentifier: Netcode for GameObjects Community Extensions::NetworkManagerHud
-  DrawOffset: {x: 10, y: 10}
-  LabelColor: {r: 0, g: 0, b: 0, a: 1}
---- !u!114 &1356762476
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1356762470}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2e41f5ac27cd5d94290b437bd63e3e94, type: 3}
-  m_Name:
-  m_EditorClassIdentifier: Netcode for GameObjects Community Extensions::ExampleNetworkDiscovery
-  m_Port: 47777
-  m_UniqueApplicationId: 7644027392901537
-  m_StartWithServer: 1
-  ServerName: Voice Chat
-  OnServerFound:
-    m_PersistentCalls:
-      m_Calls:
-      - m_Target: {fileID: 1356762477}
-        m_TargetAssemblyTypeName: ExampleNetworkDiscoveryHud, Netcode for GameObjects Community Extensions
-        m_MethodName: OnServerFound
-        m_Mode: 0
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument:
-          m_BoolArgument: 0
-        m_CallState: 2
---- !u!114 &1356762477
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1356762470}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b46ffdc4d7ab38141a7ae4b98322c4e4, type: 3}
-  m_Name:
-  m_EditorClassIdentifier: Netcode for GameObjects Community Extensions::ExampleNetworkDiscoveryHud
-  m_Discovery: {fileID: 1356762476}
-  DrawOffset: {x: 10, y: 210}
 --- !u!114 &1356762472
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -729,6 +672,91 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1356762475
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1356762470}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 35a2bd0c61af2e748baf691259d854b2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Netcode for GameObjects Community Extensions::NetworkManagerHud
+  DrawOffset: {x: 10, y: 10}
+  LabelColor: {r: 0, g: 0, b: 0, a: 1}
+--- !u!114 &1356762476
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1356762470}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2e41f5ac27cd5d94290b437bd63e3e94, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Netcode for GameObjects Community Extensions::ExampleNetworkDiscovery
+  m_Port: 47777
+  m_UniqueApplicationId: 7644027392901537
+  m_StartWithServer: 1
+  ServerName: Voice Chat
+  OnServerFound:
+    m_PersistentCalls:
+      m_Calls:
+      - m_Target: {fileID: 1356762477}
+        m_TargetAssemblyTypeName: ExampleNetworkDiscoveryHud, Netcode for GameObjects Community Extensions
+        m_MethodName: OnServerFound
+        m_Mode: 0
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+--- !u!114 &1356762477
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1356762470}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b46ffdc4d7ab38141a7ae4b98322c4e4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Netcode for GameObjects Community Extensions::ExampleNetworkDiscoveryHud
+  m_Discovery: {fileID: 1356762476}
+  DrawOffset: {x: 10, y: 210}
+--- !u!114 &1356762478
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1356762470}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 11711600a87e49a8b59692f0567b9866, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Lockyaw.VoiceChat::Lockyaw.VoiceChat.VoiceSession
+  networkManager: {fileID: 1356762473}
+  deliveryMode: 0
+  listenAddress: 0.0.0.0
+  advertisedAddress: 
+  voicePort: 7778
+  steamVirtualPort: 37
+  maxPeers: 128
+  sendingEnabled: 1
+  receivingEnabled: 1
+  overrideInputDevice: 0
+  inputDevice:
+    value: 
+  maximumReorderDelayMilliseconds: 10
+  maxConcealedFrames: 3
 --- !u!1 &1471564988
 GameObject:
   m_ObjectHideFlags: 0

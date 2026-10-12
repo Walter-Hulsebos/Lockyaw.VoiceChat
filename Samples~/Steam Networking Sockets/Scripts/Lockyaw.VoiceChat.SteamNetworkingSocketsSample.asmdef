@@ -2,6 +2,7 @@
   "name": "Lockyaw.VoiceChat.SteamNetworkingSocketsSample",
   "rootNamespace": "Lockyaw.VoiceChat.SteamNetworkingSocketsSample",
   "references": [
+    "Lockyaw.VoiceChat.Core",
     "Lockyaw.VoiceChat",
     "Unity.Netcode.Runtime",
     "SteamNetworkingSockets Transport for Netcode for GameObjects",
